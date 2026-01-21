@@ -1,0 +1,5 @@
+Configure Biome for linting and formatting
+- Installed @biomejs/biome
+- Initialized biome.json
+- Added scripts: lint, format, check
+- Verified setup
