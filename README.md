@@ -54,6 +54,14 @@ You can improve transcription accuracy for specific terms (names, technical jarg
 
 ## Linux Compatibility
 
+### Tested Distributions
+
+The following distributions have been tested and verified:
+
+- **Ubuntu** (GNOME)
+- **Fedora** (GNOME, KDE)
+- **Arch Linux** (Hyprland, Sway)
+
 ### Wayland Support (Hyprland, GNOME, KDE)
 
 This tool prioritizes Wayland support but relies on specific system packages to function correctly.
