@@ -298,7 +298,7 @@ interface DaemonState {
 - [x] Add systemd service enable on install
 - [x] Add systemd service start on system boot
 - [x] Document systemd setup instructions in README
-- [ ] Add troubleshooting section for systemd issues
+- [x] Add troubleshooting section for systemd issues
 - [ ] Document tested distributions (Ubuntu, Fedora, Arch) in README
 
 ### Phase 14: Health Monitoring (Priority: High)

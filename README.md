@@ -132,4 +132,40 @@ To detect global hotkeys, the following X11 development libraries are required:
   sudo pacman -S libx11 libxtst libxi
   ```
 
+### systemd Troubleshooting
+
+If you encounter issues when running `voice-cli` as a systemd service:
+
+#### 1. Check Service Status
+Verify if the service is active and running:
+```bash
+systemctl --user status voice-cli
+```
+
+#### 2. View Service Logs
+If the service fails to start or behaves unexpectedly, check the logs:
+```bash
+# View recent logs
+journalctl --user -u voice-cli -n 50
+
+# Tail logs in real-time
+journalctl --user -u voice-cli -f
+```
+
+#### 3. Common Issues & Fixes
+
+- **`bun` not found**: Ensure `bun` is in your PATH. The installation script attempts to detect your bun path, but if it fails, you may need to manually edit the service file at `~/.config/systemd/user/voice-cli.service` and set the correct `ExecStart` path.
+- **Environment Variables**: The service requires `DISPLAY` or `WAYLAND_DISPLAY` to send notifications and detect hotkeys. If these change (e.g., after a logout), you may need to restart the service:
+  ```bash
+  systemctl --user restart voice-cli
+  ```
+- **Audio/Input Permissions**: If the daemon cannot access your microphone or detect hotkeys, ensure your user is in the `audio` and `input` groups:
+  ```bash
+  sudo usermod -aG audio,input $USER
+  ```
+  *Note: Log out and back in for group changes to take effect.*
+
+#### 4. Application Logs
+In addition to systemd logs, `voice-cli` maintains its own structured logs in `~/.config/voice-cli/logs/`. These contain detailed information about transcriptions and internal errors.
+
 This project was created using `bun init` in bun v1.3.3. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
