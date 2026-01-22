@@ -71,4 +71,29 @@ describe("withRetry", () => {
     
     expect(attempts).toBe(1);
   });
+
+  it("should pass AbortSignal to operation and abort when timed out", async () => {
+    let signalPassed: AbortSignal | undefined;
+    let wasAborted = false;
+
+    const operation = async (signal?: AbortSignal) => {
+      signalPassed = signal;
+      if (signal) {
+        signal.addEventListener("abort", () => {
+          wasAborted = true;
+        });
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return "success";
+    };
+
+    try {
+      await withRetry(operation, { timeout: 10, maxRetries: 0 });
+    } catch (e: any) {
+      expect(e.message).toContain("timed out");
+    }
+
+    expect(signalPassed).toBeDefined();
+    expect(wasAborted).toBe(true);
+  });
 });
