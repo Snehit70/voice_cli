@@ -3,6 +3,7 @@ import { HotkeyListener } from "./hotkey";
 import { GroqClient } from "../transcribe/groq";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
 import { TranscriptMerger } from "../transcribe/merger";
+import { convertAudio } from "../audio/converter";
 import { ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
 import { logger, logError } from "../utils/logger";
@@ -103,9 +104,12 @@ export class DaemonService {
       const language = config.transcription.language;
       const boostWords = config.transcription.boostWords || [];
 
+      // Convert audio to optimal format (16kHz WAV Mono)
+      const convertedBuffer = await convertAudio(audioBuffer);
+
       const [groqResult, deepgramResult] = await Promise.allSettled([
-        this.groq.transcribe(audioBuffer, language, boostWords),
-        this.deepgram.transcribe(audioBuffer, language, boostWords),
+        this.groq.transcribe(convertedBuffer, language, boostWords),
+        this.deepgram.transcribe(convertedBuffer, language, boostWords),
       ]);
 
       const groqText = groqResult.status === "fulfilled" ? groqResult.value : "";
