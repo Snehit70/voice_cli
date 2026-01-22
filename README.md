@@ -90,6 +90,24 @@ npx git+https://github.com/snehit/voice-cli.git
 
 ---
 
+## Usage
+
+For a detailed guide, see [Usage Guide](docs/USAGE.md).
+
+### Quick Start
+1. **Start the daemon**: `bun run index.ts start` (or use the systemd service).
+2. **Trigger Recording**: Press the **Right Control** key once to start recording.
+3. **Stop & Transcribe**: Press the **Right Control** key again to stop.
+4. **Result**: The transcript will be **appended** to your clipboard.
+
+### Essential Commands
+- `bun run index.ts status`: Check if the daemon is running and see stats.
+- `bun run index.ts health`: Verify API keys and microphone setup.
+- `bun run index.ts history list`: View recent transcriptions.
+- `bun run index.ts config bind`: Change the global hotkey.
+
+---
+
 ## System-wide Installation (Daemon Setup)
 
 For a seamless "transcribe-anywhere" experience, you should install `voice-cli` as a systemd user service. This ensures the daemon starts automatically on login and runs in the background.

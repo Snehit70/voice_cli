@@ -379,9 +379,9 @@ interface DaemonState {
 ### Phase 21: Documentation - README (Priority: High)
 - [x] Write project description and tagline
 - [x] Document prerequisites (Node.js, Bun, Linux)
-- [ ] Write installation instructions (npm/bun/npx)
-- [ ] Document API key setup (Groq, Deepgram)
-- [ ] Write usage guide (daemon start, hotkey, history, health)
+- [x] Write installation instructions (npm/bun/npx)
+- [x] Document API key setup (Groq, Deepgram)
+- [x] Write usage guide (daemon start, hotkey, history, health)
 - [ ] Document configuration options (config file format)
 - [ ] Add troubleshooting section (common errors)
 - [ ] Add examples (typical workflows)
