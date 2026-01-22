@@ -124,6 +124,7 @@ export class DaemonService {
 
       let groqErr: any = null;
       let deepgramErr: any = null;
+      const startTime = Date.now();
 
       const [groqText, deepgramText] = await Promise.all([
         this.groq.transcribe(convertedBuffer, language, boostWords).catch((err) => {
@@ -136,26 +137,24 @@ export class DaemonService {
         }),
       ]);
 
+      const processingTime = Date.now() - startTime;
+
       const handleTranscriptionError = (err: any, failedService: string) => {
         if (err?.message?.includes("Invalid API Key")) {
           notify("Configuration Error", `Invalid ${failedService} API Key. Check config.`, "error");
         } else if (err?.message?.includes("Rate limit exceeded")) {
           notify("Rate Limit", err.message, "error");
         } else if (err?.message?.includes("timed out")) {
-          logError(`${failedService} API timed out`, err);
+          logger.warn(`${failedService} API timed out`);
         } else {
           logError(`${failedService} failed`, err);
         }
       };
 
-      if (groqErr) {
-        handleTranscriptionError(groqErr, "Groq");
-      }
-      if (deepgramErr) {
-        handleTranscriptionError(deepgramErr, "Deepgram");
-      }
-
       if (!groqText && !deepgramText) {
+        if (groqErr) handleTranscriptionError(groqErr, "Groq");
+        if (deepgramErr) handleTranscriptionError(deepgramErr, "Deepgram");
+
         if (groqErr?.message?.includes("timed out") && deepgramErr?.message?.includes("timed out")) {
           throw new Error("Transcription request timed out (both APIs)");
         }
@@ -170,14 +169,12 @@ export class DaemonService {
         
         const failedService = !groqText ? "Groq" : "Deepgram";
         const error = !groqText ? groqErr : deepgramErr;
-        const reason = error?.message || "Unknown error";
         
-        let warningMsg = `${failedService} failed, using fallback`;
-        if (reason.includes("timed out")) {
-          warningMsg = `${failedService} timed out, using fallback`;
+        if (error) {
+          handleTranscriptionError(error, failedService);
         }
         
-        notify("Warning", warningMsg, "warning");
+        notify("Warning", `${failedService} failed, using fallback`, "warning");
       }
 
       if (!finalText) {
@@ -187,11 +184,14 @@ export class DaemonService {
       await this.clipboard.append(finalText);
       
       notify("Success", "Transcription copied to clipboard", "success");
+      
       logger.info({ 
         duration, 
-        groqLength: groqText.length, 
-        deepgramLength: deepgramText.length, 
-        finalLength: finalText.length 
+        processingTime,
+        groqText, 
+        deepgramText, 
+        finalText,
+        models: groqText && deepgramText ? "groq+deepgram+llama" : (groqText ? "groq" : "deepgram")
       }, "Transcription complete");
 
     } catch (error: any) {

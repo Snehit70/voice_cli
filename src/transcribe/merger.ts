@@ -66,7 +66,7 @@ ${deepgramText}`,
       });
 
       const merged = completion.choices[0]?.message?.content?.trim();
-      return merged || deepgramText;
+      return merged || deepgramText || groqText;
     } catch (error: any) {
       if (error?.status === 429) {
         logError("LLM merge skipped (Rate Limit exceeded after retries)", error);
@@ -75,7 +75,7 @@ ${deepgramText}`,
       } else {
         logError("LLM merge failed", error);
       }
-      return deepgramText;
+      return deepgramText || groqText;
     }
   }
 }
