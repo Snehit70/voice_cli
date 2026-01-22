@@ -24,7 +24,7 @@ describe("Config Loader", () => {
     const configData = {
       apiKeys: {
         groq: "gsk_1234567890",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
       },
     };
     writeFileSync(CONFIG_FILE, JSON.stringify(configData));
@@ -32,7 +32,7 @@ describe("Config Loader", () => {
 
     const config = loadConfig(CONFIG_FILE);
     expect(config.apiKeys.groq).toBe("gsk_1234567890");
-    expect(config.apiKeys.deepgram).toBe("4b5c1234567890abcdef1234567890abcdef12");
+    expect(config.apiKeys.deepgram).toBe("4b5c1234-5678-90ab-cdef-1234567890ab");
   });
 
   test("should fallback to env vars if keys missing in file", () => {
@@ -40,11 +40,11 @@ describe("Config Loader", () => {
     chmodSync(CONFIG_FILE, 0o600);
 
     process.env.GROQ_API_KEY = "gsk_env_key_12345";
-    process.env.DEEPGRAM_API_KEY = "4b5c1234567890abcdef1234567890abcdef12";
+    process.env.DEEPGRAM_API_KEY = "4b5c1234-5678-90ab-cdef-1234567890ab";
 
     const config = loadConfig(CONFIG_FILE);
     expect(config.apiKeys.groq).toBe("gsk_env_key_12345");
-    expect(config.apiKeys.deepgram).toBe("4b5c1234567890abcdef1234567890abcdef12");
+    expect(config.apiKeys.deepgram).toBe("4b5c1234-5678-90ab-cdef-1234567890ab");
   });
 
   test("should throw error if keys are missing in both file and env", () => {
@@ -62,7 +62,7 @@ describe("Config Loader", () => {
     const configData = {
       apiKeys: {
         groq: "invalid_key",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
       },
     };
     writeFileSync(CONFIG_FILE, JSON.stringify(configData));
@@ -101,7 +101,7 @@ describe("Config Loader", () => {
     const configData = {
       apiKeys: {
         groq: "gsk_1234567890",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
       },
       transcription: {
         boostWords: ["React", "TypeScript", "Artificial Intelligence"],
@@ -122,7 +122,7 @@ describe("Config Loader", () => {
     const configData = {
       apiKeys: {
         groq: "gsk_1234567890",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
       },
       transcription: {
         boostWords: manyWords,
@@ -139,7 +139,7 @@ describe("Config Loader", () => {
      const configData = {
       apiKeys: {
         groq: "gsk_1234567890",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
       },
     };
     writeFileSync(CONFIG_FILE, JSON.stringify(configData));
@@ -171,7 +171,7 @@ describe("Config Loader", () => {
       const configData = {
         apiKeys: {
           groq: "gsk_1234567890",
-          deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+          deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
         },
         behavior: {
           hotkey: hotkey,
@@ -200,7 +200,7 @@ describe("Config Loader", () => {
       const configData = {
         apiKeys: {
           groq: "gsk_1234567890",
-          deepgram: "4b5c1234567890abcdef1234567890abcdef12",
+          deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab",
         },
         behavior: {
           hotkey: hotkey,

@@ -341,11 +341,11 @@ interface DaemonState {
   - [x] Add boost words validation (max 450 words)
   - [x] Save config to file after setup
 
-- [ ] Display success message with next steps
+- [x] Display success message with next steps
 
 ### Phase 18: Error Handling & User-Friendly Messages (Priority: High)
-- [ ] Create error message templates (user-friendly, actionable)
-- [ ] Add error for invalid Groq API key (show setup instructions)
+- [x] Create error message templates (user-friendly, actionable)
+- [x] Add error for invalid Groq API key (show setup instructions)
 - [ ] Add error for invalid Deepgram API key (show setup instructions)
 - [ ] Add error for no microphone detected (show troubleshooting steps)
 - [ ] Add error for microphone permission denied (show how to grant)

@@ -12,7 +12,7 @@ export const ErrorTemplates = {
     },
     DEEPGRAM_INVALID_KEY: {
       message: "Deepgram API key is invalid or missing.",
-      action: "Please check your Deepgram API key in ~/.config/voice-cli/config.json. It should be a valid UUID."
+      action: "Please check your Deepgram API key in ~/.config/voice-cli/config.json. It should be a valid UUID.\n\nYou can get a key at: https://console.deepgram.com/signup"
     },
     RATE_LIMIT_EXCEEDED: (provider: string) => ({
       message: `${provider} rate limit exceeded.`,
