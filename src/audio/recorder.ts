@@ -63,12 +63,12 @@ export class AudioRecorder extends EventEmitter {
           if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
             errorMessage = "No microphone detected. Please check if your microphone is connected and configured correctly.";
             errorCode = "NO_MICROPHONE";
-          } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
-            errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
-            errorCode = "PERMISSION_DENIED";
           } else if (stderrOutput.includes("Device or resource busy")) {
             errorMessage = "Microphone is busy. Another application might be using it.";
             errorCode = "DEVICE_BUSY";
+          } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
+            errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
+            errorCode = "PERMISSION_DENIED";
           } else {
             errorMessage = `${errorMessage}. Details: ${stderrOutput.trim()}`;
           }
