@@ -9,41 +9,50 @@
 Before installing `voice-cli`, ensure your system meets the following requirements:
 
 ### 1. Runtime Environment
+
 - **Node.js**: >= 20.0.0 (LTS recommended)
 - **Bun**: Latest version (used for package management and as the runtime)
 
 ### 2. Linux System Dependencies
+
 The tool requires several system-level packages to handle audio recording, global hotkeys, and clipboard operations.
 
 #### **Audio Recording**
+
 - `alsa-utils` (specifically `arecord`)
   - **Arch**: `sudo pacman -S alsa-utils`
   - **Ubuntu/Debian**: `sudo apt install alsa-utils`
   - **Fedora**: `sudo dnf install alsa-utils`
 
 #### **Clipboard Support**
+
 - **Wayland**: `wl-clipboard`
 - **X11**: `xclip` or `xsel`
 
 #### **Global Hotkey Support**
+
 Requires X11 development libraries (even on Wayland via XWayland):
+
 - **Ubuntu/Debian**: `sudo apt install libx11-dev libxtst-dev libxi-dev`
 - **Fedora**: `sudo dnf install libX11-devel libXtst-devel libXi-devel`
 - **Arch**: `sudo pacman -S libx11 libxtst libxi`
 
 #### **Notifications**
+
 - `libnotify`
   - **Arch**: `sudo pacman -S libnotify`
   - **Ubuntu/Debian**: `sudo apt install libnotify-bin`
   - **Fedora**: `sudo dnf install libnotify`
 
 ### 3. User Permissions
+
 Your user must have permission to access audio devices and input events. Add your user to the `audio` and `input` groups:
 
 ```bash
 sudo usermod -aG audio,input $USER
 ```
-*Note: You must log out and back in for these changes to take effect.*
+
+_Note: You must log out and back in for these changes to take effect._
 
 ## Installation
 
@@ -60,6 +69,7 @@ bun install
 ```
 
 To run the daemon:
+
 ```bash
 bun run index.ts
 ```
@@ -75,10 +85,12 @@ npm install
 ```
 
 To run the daemon:
+
 ```bash
 npm start # or node index.ts (requires ts-node/esm or similar)
 ```
-*Note: Using Bun is highly recommended for performance.*
+
+_Note: Using Bun is highly recommended for performance._
 
 ### 3. Using NPX
 
@@ -99,6 +111,7 @@ For programmatic use, see [Programmatic API](docs/API.md).
 For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Quick Start
+
 1. **Start the daemon**: `bun run index.ts start` (or use the systemd service).
 2. **Trigger Recording**: Press the **Right Control** key once to start recording.
 3. **Stop & Transcribe**: Press the **Right Control** key again to stop.
@@ -107,6 +120,7 @@ For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 For a deep dive into the underlying data flow, see [STT Flow Documentation](docs/STT_FLOW.md).
 
 ### Essential Commands
+
 For a complete list of commands and options, see the **[CLI Command Reference](docs/CLI_COMMANDS.md)**.
 
 - `bun run index.ts status`: Check if the daemon is running and see stats.
@@ -132,11 +146,13 @@ bun run index.ts install
 ```
 
 This command will:
+
 1. Create a systemd user service file at `~/.config/systemd/user/voice-cli.service`.
 2. Enable the service to start on boot.
 3. Start the service immediately.
 
 To uninstall the service:
+
 ```bash
 bun run index.ts uninstall
 ```
@@ -150,16 +166,21 @@ The configuration file is located at `~/.config/voice-cli/config.json`. For a co
 `voice-cli` requires API keys from both **Groq** and **Deepgram** to function. These keys must be added to your configuration file.
 
 #### 1. Groq API Key (Whisper V3)
+
 Used for high-speed Whisper-based transcription.
+
 - **Obtain Key**: [Groq Cloud Console](https://console.groq.com/keys)
 - **Validation**: Must start with `gsk_`.
 
 #### 2. Deepgram API Key (Nova-3)
+
 Used in parallel with Groq for increased reliability and fallback support.
+
 - **Obtain Key**: [Deepgram Console](https://console.deepgram.com/)
 - **Validation**: 40-character hex string (standard) or UUID.
 
 #### Example Configuration
+
 ```json
 {
   "apiKeys": {
@@ -225,12 +246,12 @@ For more details on formatting, token limits, and case sensitivity, see the **[C
 
 ### Platform Compatibility Matrix
 
-| Feature | Wayland (Hyprland/GNOME/KDE) | X11 (GNOME/KDE/XFCE) | Required Packages / Notes |
-| :--- | :--- | :--- | :--- |
-| **Global Hotkey** | ⚠️ Partial (via XWayland) | ✅ Native | Wayland requires XWayland or native compositor binds. |
-| **Clipboard** | ✅ Native | ✅ Native | `wl-clipboard` (Wayland) or `xclip/xsel` (X11). |
-| **Notifications** | ✅ Supported | ✅ Supported | Requires `libnotify` / `notify-send`. |
-| **Audio (ALSA)** | ✅ Supported | ✅ Supported | Works with PulseAudio and PipeWire via ALSA layer. |
+| Feature           | Wayland (Hyprland/GNOME/KDE) | X11 (GNOME/KDE/XFCE) | Required Packages / Notes                             |
+| :---------------- | :--------------------------- | :------------------- | :---------------------------------------------------- |
+| **Global Hotkey** | ⚠️ Partial (via XWayland)    | ✅ Native            | Wayland requires XWayland or native compositor binds. |
+| **Clipboard**     | ✅ Native                    | ✅ Native            | `wl-clipboard` (Wayland) or `xclip/xsel` (X11).       |
+| **Notifications** | ✅ Supported                 | ✅ Supported         | Requires `libnotify` / `notify-send`.                 |
+| **Audio (ALSA)**  | ✅ Supported                 | ✅ Supported         | Works with PulseAudio and PipeWire via ALSA layer.    |
 
 ### Tested Distributions
 
@@ -242,11 +263,14 @@ The following distributions have been tested and verified:
 
 ### Wayland Support (Hyprland, GNOME, KDE)
 
-`voice-cli` prioritizes Wayland support (specifically Hyprland) but relies on specific system packages and XWayland for global hotkeys. 
+`voice-cli` prioritizes Wayland support (specifically Hyprland) but relies on specific system packages and XWayland for global hotkeys.
 
 **Important for Wayland Users:**
+
 - **Global Hotkeys**: Since `node-global-key-listener` uses X11 XInput2, hotkeys may only trigger when an XWayland window has focus. For 100% reliability on Wayland, we recommend binding the `toggle` command directly in your compositor config (e.g., Hyprland `bind`).
 - **Clipboard**: Ensure `wl-clipboard` is installed to allow the daemon to interact with the Wayland clipboard buffer.
+
+**📖 For detailed Wayland setup instructions, see the [Wayland Support Guide](docs/WAYLAND.md).**
 
 ## Troubleshooting
 
@@ -254,13 +278,13 @@ For a comprehensive list of errors and solutions, see the **[Troubleshooting Gui
 
 ### Common Issues Quick-Fix
 
-| Issue | Resolution |
-|-------|------------|
+| Issue                  | Resolution                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hotkey not working** | Ensure user is in `input` group and check Wayland/XWayland status. See [Troubleshooting: Global Hotkey Issues](docs/TROUBLESHOOTING.md#global-hotkey-issues). |
-| **No audio recorded** | Ensure user is in `audio` group. See [Audio Device Selection](docs/AUDIO_DEVICES.md). |
-| **API Errors** | Verify API keys in `config.json` (Groq starts with `gsk_`, Deepgram is a UUID). |
-| **Clipboard fail** | Install `wl-clipboard` (Wayland) or `xclip` (X11). |
-| **Service fails** | Check logs: `journalctl --user -u voice-cli -f`. |
+| **No audio recorded**  | Ensure user is in `audio` group. See [Audio Device Selection](docs/AUDIO_DEVICES.md).                                                                         |
+| **API Errors**         | Verify API keys in `config.json` (Groq starts with `gsk_`, Deepgram is a UUID).                                                                               |
+| **Clipboard fail**     | Install `wl-clipboard` (Wayland) or `xclip` (X11).                                                                                                            |
+| **Service fails**      | Check logs: `journalctl --user -u voice-cli -f`.                                                                                                              |
 
 ---
 

@@ -130,10 +130,14 @@ const VALID_HOTKEY_PARTS = new Set([
 /**
  * Validates a hotkey string.
  * Supports "Modifier+Key" format (e.g., "Ctrl+Space", "Right Control").
+ * Also accepts "disabled" to disable the built-in hotkey listener.
  * Case-insensitive.
  */
 export const hotkeyValidator = (hotkey: string) => {
 	if (!hotkey || hotkey.trim().length === 0) return false;
+
+	// Allow "disabled" as a special value to disable hotkey listener
+	if (hotkey.trim().toLowerCase() === "disabled") return true;
 
 	const parts = hotkey.split("+").map((p) => p.trim().toUpperCase());
 

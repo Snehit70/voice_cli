@@ -13,6 +13,9 @@
 	"behavior": {
 		// Global hotkey to trigger recording. Case-insensitive.
 		// Examples: "Right Control", "Ctrl+Space", "Alt+Shift+V", "F10"
+		// Special value: "disabled" - Disables built-in hotkey listener.
+		//   Useful on Wayland for using compositor bindings exclusively.
+		//   See docs/WAYLAND.md for setup instructions.
 		"hotkey": "Right Control",
 
 		// If true, press hotkey once to start, again to stop.

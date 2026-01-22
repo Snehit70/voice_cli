@@ -143,6 +143,18 @@ describe("HotkeyListener", () => {
 		expect(triggered).toBe(true);
 	});
 
+	test("should not start if hotkey is disabled", () => {
+		mocks.currentConfig = { behavior: { hotkey: "disabled" } };
+		listener.start();
+		expect(mocks.MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
+	});
+
+	test("should not start if hotkey is DISABLED (case insensitive)", () => {
+		mocks.currentConfig = { behavior: { hotkey: "DISABLED" } };
+		listener.start();
+		expect(mocks.MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
+	});
+
 	test("should stop listener successfully", () => {
 		listener.start();
 		listener.stop();
