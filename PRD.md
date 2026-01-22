@@ -406,12 +406,12 @@ interface DaemonState {
 - [x] Document "Daemon crashes frequently" (check logs, report issue)
 
 ### Phase 24: Documentation - Architecture (Priority: Low)
-- [ ] Document project structure (feature-based layout)
-- [ ] Document daemon architecture (event loop, state machine)
-- [ ] Document STT flow (audio → Groq/Deepgram → LLM → clipboard)
-- [ ] Document error handling strategy
-- [ ] Document testing strategy
-- [ ] Create architecture diagram showing daemon flow and component interactions
+- [x] Document project structure (feature-based layout)
+- [x] Document daemon architecture (event loop, state machine)
+- [x] Document STT flow (audio → Groq/Deepgram → LLM → clipboard)
+- [x] Document error handling strategy
+- [x] Document testing strategy
+- [x] Create architecture diagram showing daemon flow and component interactions
 
 ### Phase 25: Documentation - API Documentation (Priority: Low)
 - [ ] Document programmatic API (if exposing for other tools)

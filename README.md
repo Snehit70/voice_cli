@@ -103,6 +103,8 @@ For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 3. **Stop & Transcribe**: Press the **Right Control** key again to stop.
 4. **Result**: The transcript will be **appended** to your clipboard.
 
+For a deep dive into the underlying data flow, see [STT Flow Documentation](docs/STT_FLOW.md).
+
 ### Essential Commands
 - `bun run index.ts status`: Check if the daemon is running and see stats.
 - `bun run index.ts health`: Verify API keys and microphone setup.

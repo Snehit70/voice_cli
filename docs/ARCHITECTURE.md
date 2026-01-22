@@ -40,7 +40,7 @@ Uses `node-global-key-listener` to monitor keyboard events across the entire OS 
 - **Conflict Detection**: Verifies the hotkey isn't bound by other processes at startup.
 
 ### 4. Transcription Data Flow
-The transcription cycle follows a strictly orchestrated path:
+The transcription cycle follows a strictly orchestrated path (see [STT Flow Details](STT_FLOW.md) for a deep dive):
 1. **Trigger**: `HotkeyListener` emits a `trigger` event.
 2. **Record**: `AudioRecorder` starts `arecord` via `node-record-lpcm16`. Audio chunks are streamed into a buffer.
 3. **Conversion**: Audio is converted to optimal format (16kHz WAV Mono) for API consumption.
@@ -86,3 +86,10 @@ The transcription cycle follows a strictly orchestrated path:
 - **Fail Fast**: Prioritizes speed over exhaustive retries (max 2 attempts).
 - **Audio Validation**: Automatically rejects recordings shorter than 0.6s and warns on silent audio.
 - **Safety**: Never overwrites clipboard content; always appends to history.
+- **Structured Error Responses**: All internal errors are mapped to user-friendly templates in `src/utils/error-templates.ts`.
+
+## Testing Strategy
+- **Unit Testing**: Vitest is used for testing individual modules (config, conversion, merging).
+- **Integration Testing**: End-to-end tests for transcription APIs (using mock and real buffers) and daemon lifecycle.
+- **Coverage**: Aiming for 80%+ coverage with a focus on error recovery paths.
+- **Mocking**: External APIs are mocked in unit tests, while integration tests use a mix of mocks and controlled live requests.

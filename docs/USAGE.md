@@ -62,7 +62,7 @@ The hotkey operates in **toggle mode**:
 
 ### Transcription Process
 1. Audio is captured and processed in parallel using Groq (Whisper V3) and Deepgram (Nova-3).
-2. The best transcript is generated (or merged if both succeed). **Note: Only English (`en`) is supported in v1.0.**
+2. The best transcript is generated via an LLM merger (Llama 3.3 70B). See **[STT Flow Documentation](STT_FLOW.md)** for details.
 3. The result is **appended** to your clipboard.
 4. You receive a success notification.
 
