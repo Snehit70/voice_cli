@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { logger } from "../utils/logger";
 import { notify } from "../output/notification";
@@ -59,12 +59,21 @@ export class DaemonSupervisor {
 
       const configDir = join(homedir(), ".config", "voice-cli");
       const stateFile = join(configDir, "daemon.state");
+      const pidFile = join(configDir, "daemon.pid");
+
       if (existsSync(stateFile)) {
         try {
           const state = JSON.parse(readFileSync(stateFile, "utf-8"));
           state.status = "error";
           state.lastError = msg;
           writeFileSync(stateFile, JSON.stringify(state, null, 2));
+        } catch (e) {
+        }
+      }
+
+      if (existsSync(pidFile)) {
+        try {
+          unlinkSync(pidFile);
         } catch (e) {
         }
       }
