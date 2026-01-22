@@ -31,12 +31,13 @@ vi.mock("../src/utils/logger", () => ({
 }));
 
 vi.mock("node:fs", async () => {
-  const actual = await vi.importActual("node:fs");
   return {
-    ...actual,
     appendFileSync: vi.fn(),
     existsSync: vi.fn(() => true),
     mkdirSync: vi.fn(),
+    readdirSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    statSync: vi.fn(),
   };
 });
 
@@ -67,11 +68,11 @@ describe("ClipboardManager", () => {
     expect(clipboardy.write).toHaveBeenCalledWith("new");
   });
 
-  it("should fallback to file if clipboard write fails", async () => {
+  it("should fallback to file if clipboard write fails and throw ClipboardAccessError", async () => {
     (clipboardy.read as any).mockResolvedValue("old");
     (clipboardy.write as any).mockRejectedValue(new Error("clipboard fail"));
 
-    await expect(manager.append("new")).rejects.toThrow("clipboard fail");
+    await expect(manager.append("new")).rejects.toThrow("Failed to write to clipboard");
 
     expect(appendFileSync).toHaveBeenCalled();
   });

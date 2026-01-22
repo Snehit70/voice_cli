@@ -5,7 +5,7 @@ import { GroqClient } from "../transcribe/groq";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
 import { TranscriptMerger } from "../transcribe/merger";
 import { convertAudio } from "../audio/converter";
-import { ClipboardManager } from "../output/clipboard";
+import { ClipboardManager, ClipboardAccessError } from "../output/clipboard";
 import { notify } from "../output/notification";
 import { logger, logError } from "../utils/logger";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
@@ -289,7 +289,10 @@ export class DaemonService {
       logError("Processing failed", error, { duration });
       
       let message = "Transcription failed. Check logs.";
-      if (error?.message?.includes("timed out")) {
+      if (error instanceof ClipboardAccessError) {
+        const template = ErrorTemplates.CLIPBOARD.ACCESS_DENIED;
+        message = formatUserError(template);
+      } else if (error?.message?.includes("timed out")) {
         const template = ErrorTemplates.API.TIMEOUT("Both");
         message = formatUserError(template);
       }

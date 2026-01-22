@@ -7,6 +7,13 @@ import { homedir } from "node:os";
 import { logger, logError } from "../utils/logger";
 import { loadConfig } from "../config/loader";
 
+export class ClipboardAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ClipboardAccessError";
+  }
+}
+
 const execAsync = promisify(exec);
 
 export class ClipboardManager {
@@ -47,7 +54,7 @@ export class ClipboardManager {
       } catch (error) {
         logger.error("Clipboard write failed, falling back to file");
         this.saveToFallbackFile(text);
-        throw error;
+        throw new ClipboardAccessError("Failed to write to clipboard");
       }
     } catch (error) {
       logError("Clipboard operation failed", error);

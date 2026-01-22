@@ -95,6 +95,10 @@ export const ErrorTemplates = {
     APPEND_FAILED: {
       message: "Failed to append transcription to clipboard history.",
       action: "Ensure you have 'wl-clipboard' (Wayland) or 'xclip'/'xsel' (X11) installed."
+    },
+    ACCESS_DENIED: {
+      message: "Clipboard access denied or tool missing.",
+      action: "1. Ensure 'wl-clipboard' (Wayland) or 'xclip' (X11) is installed.\n2. Check if you have permissions to access the clipboard.\n3. The transcription has been saved to the fallback file: ~/.config/voice-cli/transcriptions.txt"
     }
   },
 
