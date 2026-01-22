@@ -211,56 +211,23 @@ The following distributions have been tested and verified:
 
 This tool prioritizes Wayland support but relies on specific system packages to function correctly. Ensure you have installed the dependencies listed in the [Prerequisites](#prerequisites) section.
 
-#### Troubleshooting
-If hotkeys are not detected:
-- Verify XWayland is running.
-- Check if you have permissions to access input devices (try adding your user to the `input` group):
-  ```bash
-  sudo usermod -aG input $USER
-  ```
-  *Note: Log out and back in for group changes to take effect.*
+## Troubleshooting
 
-If notifications are not appearing:
-- Verify a notification daemon is running (e.g., `pgrep dunst`).
-- Test manually with `notify-send "test"`.
+For a comprehensive list of errors and solutions, see the **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**.
 
-### systemd Troubleshooting
+### Common Issues Quick-Fix
 
-If you encounter issues when running `voice-cli` as a systemd service:
+| Issue | Resolution |
+|-------|------------|
+| **Hotkey not working** | Ensure user is in `input` group: `sudo usermod -aG input $USER` (re-login required). |
+| **No audio recorded** | Ensure user is in `audio` group and check `arecord -l`. |
+| **API Errors** | Verify API keys in `config.json` (Groq starts with `gsk_`, Deepgram is a UUID). |
+| **Clipboard fail** | Install `wl-clipboard` (Wayland) or `xclip` (X11). |
+| **Service fails** | Check logs: `journalctl --user -u voice-cli -f`. |
 
-#### 1. Check Service Status
-Verify if the service is active and running:
-```bash
-systemctl --user status voice-cli
-```
+---
 
-#### 2. View Service Logs
-If the service fails to start or behaves unexpectedly, check the logs:
-```bash
-# View recent logs
-journalctl --user -u voice-cli -n 50
-
-# Tail logs in real-time
-journalctl --user -u voice-cli -f
-```
-
-#### 3. Common Issues & Fixes
-
-- **`bun` not found**: Ensure `bun` is in your PATH. The installation script attempts to detect your bun path, but if it fails, you may need to manually edit the service file at `~/.config/systemd/user/voice-cli.service` and set the correct `ExecStart` path.
-- **Environment Variables**: The service requires `DISPLAY` or `WAYLAND_DISPLAY` to send notifications and detect hotkeys. If these change (e.g., after a logout), you may need to restart the service:
-  ```bash
-  systemctl --user restart voice-cli
-  ```
-- **Audio/Input Permissions**: If the daemon cannot access your microphone or detect hotkeys, ensure your user is in the `audio` and `input` groups:
-  ```bash
-  sudo usermod -aG audio,input $USER
-  ```
-  *Note: Log out and back in for group changes to take effect.*
-
-#### 4. Application Logs
-In addition to systemd logs, `voice-cli` maintains its own structured logs in `~/.config/voice-cli/logs/`. These contain detailed information about transcriptions and internal errors.
-
-### Transcription History
+## Transcription History
 
 All successful transcriptions are stored in `~/.config/voice-cli/history.json`. You can view or clear the history using the CLI:
 
