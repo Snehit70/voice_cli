@@ -144,7 +144,7 @@ Used for high-speed Whisper-based transcription.
 #### 2. Deepgram API Key (Nova-3)
 Used in parallel with Groq for increased reliability and fallback support.
 - **Obtain Key**: [Deepgram Console](https://console.deepgram.com/)
-- **Validation**: Must be a valid UUID format.
+- **Validation**: 40-character hex string (standard) or UUID.
 
 #### Example Configuration
 ```json

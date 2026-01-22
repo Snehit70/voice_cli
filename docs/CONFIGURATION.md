@@ -15,10 +15,22 @@ chmod 600 ~/.config/voice-cli/config.json
 
 ## Environment Variables
 
-If an API key is missing from `config.json`, the application will fall back to the following environment variables:
+The application supports the following environment variables:
 
+### API Key Fallbacks
+If an API key is missing from `config.json`, the application will fall back to these:
 - `GROQ_API_KEY`: Fallback for `apiKeys.groq`
 - `DEEPGRAM_API_KEY`: Fallback for `apiKeys.deepgram`
+
+### Logging
+- `LOG_LEVEL`: Sets the minimum logging level. Options: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent`. Default: `info`.
+
+### Systemd / Desktop Environments
+These are typically handled automatically by your desktop environment or the systemd service:
+- `DISPLAY`: Required for X11 notifications and clipboard.
+- `WAYLAND_DISPLAY`: Required for Wayland notifications and clipboard.
+- `XAUTHORITY`: Required for X11 authentication.
+- `XDG_RUNTIME_DIR`: Required for systemd and communication.
 
 ## Configuration Format
 
@@ -66,10 +78,22 @@ The configuration is a JSON file structured into several sections.
 
 Authentication credentials for the transcription services.
 
-| Option | Type | Default | Description | Validation Rules |
-| :--- | :--- | :--- | :--- | :--- |
-| `groq` | String | N/A | API key for Groq (Whisper V3). | Must start with `gsk_`. Min 10 chars. |
-| `deepgram` | String | N/A | API key for Deepgram (Nova-3). | Must be a valid UUID format. |
+| Option | Type | Default | Description | Validation Rules | Acquisition URL |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `groq` | String | N/A | API key for Groq (Whisper V3). | Must start with `gsk_`. | [Groq Console](https://console.groq.com/keys) |
+| `deepgram` | String | N/A | API key for Deepgram (Nova-3). | 40-char hex string or UUID. | [Deepgram Console](https://console.deepgram.com/) |
+
+#### How to obtain API Keys
+
+1. **Groq API Key**:
+   - Go to the [Groq Cloud Console](https://console.groq.com/keys).
+   - Create a new API key.
+   - **Format**: The key starts with `gsk_` (e.g., `gsk_xxxxxxxxxxxxxxxxxxxx`).
+
+2. **Deepgram API Key**:
+   - Go to the [Deepgram Console](https://console.deepgram.com/).
+   - Navigate to **API Keys** and create a new key.
+   - **Format**: The key is typically a **40-character hexadecimal string** (e.g., `abcdef1234567890abcdef1234567890abcdef12`). Legacy keys or specific project IDs might use a UUID format, both are supported.
 
 ---
 
@@ -82,7 +106,7 @@ Controls the core functionality and user interaction of the daemon.
 | `hotkey` | String | `"Right Control"` | Global hotkey to trigger recording. | Supports `Modifier+Key` format. |
 | `toggleMode` | Boolean | `true` | If `true`, press once to start and again to stop. If `false`, recording duration is fixed. | N/A |
 | `notifications` | Boolean | `true` | Enable/disable desktop notifications for recording status. | N/A |
-| `audioDevice` | String | Optional | Specify a custom ALSA audio device name. | N/A |
+| `audioDevice` | String | Optional | Specify a custom ALSA audio device name (e.g., `"hw:0,0"` or `"default"`). | N/A |
 
 #### Clipboard Settings (`behavior.clipboard`)
 

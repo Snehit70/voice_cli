@@ -388,8 +388,8 @@ interface DaemonState {
 - [x] Add contributing guidelines
 
 ### Phase 22: Documentation - Configuration Reference (Priority: Medium)
-- [ ] Document all config file options
-- [ ] Document API key format and where to get them
+- [x] Document all config file options
+- [x] Document API key format and where to get them
 - [ ] Document hotkey options (valid key combinations)
 - [ ] Document boost words format and limits
 - [ ] Document audio device selection
