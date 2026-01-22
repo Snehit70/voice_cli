@@ -58,7 +58,7 @@ const VALID_HOTKEY_PARTS = new Set([
  * Supports "Modifier+Key" format (e.g., "Ctrl+Space", "Right Control").
  * Case-insensitive.
  */
-const hotkeyValidator = (hotkey: string) => {
+export const hotkeyValidator = (hotkey: string) => {
   if (!hotkey || hotkey.trim().length === 0) return false;
   
   const parts = hotkey.split("+").map(p => p.trim().toUpperCase());
