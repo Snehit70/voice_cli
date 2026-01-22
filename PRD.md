@@ -303,7 +303,7 @@ interface DaemonState {
 
 ### Phase 14: Health Monitoring (Priority: High)
 - [x] Implement `voice-cli health` command
-- [ ] Check daemon status (running/stopped, PID, uptime)
+- [x] Check daemon status (running/stopped, PID, uptime)
 - [ ] Check Groq API connectivity (ping with test request)
 - [ ] Check Deepgram API connectivity (ping with test request)
 - [ ] Check microphone detection (list available devices)

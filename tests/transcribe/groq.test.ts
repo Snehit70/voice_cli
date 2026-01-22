@@ -20,6 +20,9 @@ mock.module("groq-sdk", () => {
           create: mock(async () => ({ text: "  transcribed text  " }))
         }
       };
+      models = {
+        list: mock(async () => ({ data: [{ id: "model1" }] }))
+      };
     }
   };
 });
@@ -55,5 +58,10 @@ describe("GroqClient", () => {
     
     const text = await client.transcribe(audioBuffer, "en", ["word1", "word2"]);
     expect(text).toBe("transcribed text");
+  });
+
+  it("should check connection successfully", async () => {
+    const isConnected = await client.checkConnection();
+    expect(isConnected).toBe(true);
   });
 });

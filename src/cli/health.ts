@@ -70,9 +70,8 @@ export const healthCommand = new Command("health")
       // Test Groq
       try {
         const groq = new GroqClient();
-        // Accessing private client for health check
-        const models = await (groq as any).client.models.list();
-        if (models && models.data) {
+        const connected = await groq.checkConnection();
+        if (connected) {
           console.log("✅ Groq API: Connected");
         }
       } catch (e) {

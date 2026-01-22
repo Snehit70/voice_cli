@@ -17,6 +17,29 @@ export class GroqClient {
     });
   }
 
+  public async checkConnection(): Promise<boolean> {
+    try {
+      return await withRetry(async () => {
+        const models = await this.client.models.list();
+        return !!(models && models.data);
+      }, {
+        operationName: "Groq Connectivity Check",
+        maxRetries: 2,
+        backoffs: [100, 200],
+        timeout: 10000,
+        shouldRetry: (error: any) => {
+          return error?.status !== 401;
+        }
+      });
+    } catch (error: any) {
+      if (error?.status === 401) {
+        throw new Error("Groq: Invalid API Key");
+      }
+      logError("Groq connectivity check failed", error);
+      throw error;
+    }
+  }
+
 
   public async transcribe(audioBuffer: Buffer, language: string = "en", boostWords: string[] = []): Promise<string> {
     const tempFile = join(tmpdir(), `voice-cli-${randomUUID()}.wav`);
