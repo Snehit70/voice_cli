@@ -372,9 +372,9 @@ interface DaemonState {
 - [x] Write integration test for LLM merger (with sample transcripts)
 - [x] Write integration test for clipboard write (verify append mode)
 - [x] Write integration test for daemon lifecycle (start/stop/restart)
-- [ ] Write integration test for config file operations
+- [x] Write integration test for config file operations
 
-- [ ] Write integration test for history storage
+- [x] Write integration test for history storage
 
 ### Phase 21: Documentation - README (Priority: High)
 - [ ] Write project description and tagline
