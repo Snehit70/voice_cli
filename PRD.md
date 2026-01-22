@@ -382,10 +382,10 @@ interface DaemonState {
 - [x] Write installation instructions (npm/bun/npx)
 - [x] Document API key setup (Groq, Deepgram)
 - [x] Write usage guide (daemon start, hotkey, history, health)
-- [ ] Document configuration options (config file format)
-- [ ] Add troubleshooting section (common errors)
-- [ ] Add examples (typical workflows)
-- [ ] Add contributing guidelines
+- [x] Document configuration options (config file format)
+- [x] Add troubleshooting section (common errors)
+- [x] Add examples (typical workflows)
+- [x] Add contributing guidelines
 
 ### Phase 22: Documentation - Configuration Reference (Priority: Medium)
 - [ ] Document all config file options
