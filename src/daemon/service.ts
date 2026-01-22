@@ -8,6 +8,7 @@ import { convertAudio } from "../audio/converter";
 import { ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
 import { logger, logError } from "../utils/logger";
+import { ErrorTemplates, formatUserError } from "../utils/error-templates";
 import { loadConfig } from "../config/loader";
 import { loadStats, incrementTranscriptionCount } from "../utils/stats";
 import { appendHistory } from "../utils/history";
@@ -205,9 +206,11 @@ export class DaemonService {
 
       const handleTranscriptionError = (err: any, failedService: string) => {
         if (err?.message?.includes("Invalid API Key")) {
-          notify("Configuration Error", `Invalid ${failedService} API Key. Check config.`, "error");
+          const template = failedService === "Groq" ? ErrorTemplates.API.GROQ_INVALID_KEY : ErrorTemplates.API.DEEPGRAM_INVALID_KEY;
+          notify("Configuration Error", formatUserError(template), "error");
         } else if (err?.message?.includes("Rate limit exceeded")) {
-          notify("Rate Limit", err.message, "error");
+          const template = ErrorTemplates.API.RATE_LIMIT_EXCEEDED(failedService);
+          notify("Rate Limit", formatUserError(template), "error");
         } else if (err?.message?.includes("timed out")) {
           logger.warn(`${failedService} API timed out`);
         } else {
@@ -220,6 +223,8 @@ export class DaemonService {
         if (deepgramErr) handleTranscriptionError(deepgramErr, "Deepgram");
 
         if (groqErr?.message?.includes("timed out") && deepgramErr?.message?.includes("timed out")) {
+          const template = ErrorTemplates.API.BOTH_SERVICES_FAILED;
+          notify("Error", formatUserError(template), "error");
           throw new Error("Transcription request timed out (both APIs)");
         }
         throw new Error("Both transcription services failed");
@@ -276,7 +281,8 @@ export class DaemonService {
       
       let message = "Transcription failed. Check logs.";
       if (error?.message?.includes("timed out")) {
-        message = "Transcription timed out. Please check your internet connection.";
+        const template = ErrorTemplates.API.TIMEOUT("Both");
+        message = formatUserError(template);
       }
       
       this.errorCount++;
