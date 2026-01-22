@@ -128,7 +128,7 @@ bun run index.ts uninstall
 
 ## Configuration
 
-The configuration file is located at `~/.config/voice-cli/config.json`.
+The configuration file is located at `~/.config/voice-cli/config.json`. For a complete reference of all available options, see the **[Configuration Guide](docs/CONFIGURATION.md)**.
 
 ### API Key Setup
 
