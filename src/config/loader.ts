@@ -3,14 +3,14 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { ConfigSchema, type Config, type ConfigFile } from "./schema";
 
-const DEFAULT_CONFIG_DIR = join(homedir(), ".config", "voice-cli");
-const DEFAULT_CONFIG_FILE = join(DEFAULT_CONFIG_DIR, "config.json");
+export const DEFAULT_CONFIG_DIR = join(homedir(), ".config", "voice-cli");
+export const DEFAULT_CONFIG_FILE = join(DEFAULT_CONFIG_DIR, "config.json");
 
 /**
  * Resolves the path with ~ expansion.
  * Essential for handling user-friendly paths in config.
  */
-const resolvePath = (path: string): string => {
+export const resolvePath = (path: string): string => {
   if (path.startsWith("~")) {
     return join(homedir(), path.slice(1));
   }

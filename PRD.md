@@ -176,16 +176,16 @@ interface DaemonState {
 - [x] Create `tsconfig.json` with strict mode enabled
 
 ### Phase 2: Configuration Management (Priority: Critical)
-- [ ] Create config schema with TypeScript interfaces
-- [ ] Implement config file reader (`~/.config/voice-cli/config.json`)
-- [ ] Implement config file writer with validation
-- [ ] Add API key format validation (Groq, Deepgram)
+- [x] Create config schema with TypeScript interfaces
+- [x] Implement config file reader (`~/.config/voice-cli/config.json`)
+- [x] Implement config file writer with validation
+- [x] Add API key format validation (Groq, Deepgram)
 - [ ] Add hotkey validation (valid key combinations)
-- [ ] Add boost words validation (max 450 words)
+- [x] Add boost words validation (max 450 words)
 - [ ] Create default config template
-- [ ] Add environment variable support (fallback to env vars)
-- [ ] Create config directory on first run (`~/.config/voice-cli/`)
-- [ ] Set proper file permissions (chmod 600 for config file)
+- [x] Add environment variable support (fallback to env vars)
+- [x] Create config directory on first run (`~/.config/voice-cli/`)
+- [x] Set proper file permissions (chmod 600 for config file)
 
 ### Phase 3: Audio Capture (Priority: Critical)
 - [ ] Install node-record-lpcm16 package for audio recording
