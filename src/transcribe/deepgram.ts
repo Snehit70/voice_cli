@@ -29,6 +29,13 @@ export class DeepgramTranscriber {
         
         const text = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
         if (!text) return "";
+
+        logger.debug({ 
+          text: text.substring(0, 100) + (text.length > 100 ? "..." : ""), 
+          confidence: result?.results?.channels?.[0]?.alternatives?.[0]?.confidence,
+          model: "nova-3"
+        }, "Deepgram Nova-3 transcription success");
+
         return text.trim();
       }, {
         operationName: "Deepgram Nova-3",
@@ -63,7 +70,14 @@ export class DeepgramTranscriber {
           );
 
           if (retryError) throw retryError;
-          return result?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || "";
+          const text = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || "";
+          
+          logger.debug({ 
+            text: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+            model: "nova-2"
+          }, "Deepgram Nova-2 fallback success");
+          
+          return text;
         }, {
           operationName: "Deepgram Nova-2 Fallback",
           maxRetries: 2,
