@@ -23,16 +23,21 @@ configCommand
       }
 
       console.log(colors.cyan("Initializing voice-cli configuration..."));
+      console.log(colors.dim("Follow the prompts to set up your API keys. Press Ctrl+C to cancel at any time.\n"));
 
       const groqKey = readlineSync.question("Enter Groq API Key (starts with gsk_): ", {
         hideEchoBack: true,
-        validate: (input: string) => input.startsWith("gsk_") || "Groq API key must start with 'gsk_'"
+        mask: "*",
+        validate: (input: string) => input.startsWith("gsk_") || colors.red("Invalid format: Groq API key must start with 'gsk_'")
       });
 
-      const deepgramKey = readlineSync.question("Enter Deepgram API Key: ", {
+      const deepgramKey = readlineSync.question("\nEnter Deepgram API Key (UUID): ", {
         hideEchoBack: true,
-        validate: (input: string) => input.length >= 32 || "Deepgram API key is too short"
+        mask: "*",
+        validate: (input: string) => /^[a-fA-F0-9-]+$/.test(input) && input.length >= 32 || colors.red("Invalid format: Deepgram API key must be a valid UUID or 40-char hex string")
       });
+
+      console.log("");
 
       const config = {
         apiKeys: {
