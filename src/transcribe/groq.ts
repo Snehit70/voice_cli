@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/loader";
-import { logger, logError } from "../utils/logger";
+import { logError } from "../utils/logger";
 
 export class GroqClient {
   private client: Groq;

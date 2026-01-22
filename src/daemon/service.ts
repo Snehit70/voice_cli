@@ -122,13 +122,19 @@ export class DaemonService {
       // Convert audio to optimal format (16kHz WAV Mono)
       const convertedBuffer = await convertAudio(audioBuffer);
 
-      const [groqResult, deepgramResult] = await Promise.allSettled([
-        this.groq.transcribe(convertedBuffer, language, boostWords),
-        this.deepgram.transcribe(convertedBuffer, language, boostWords),
-      ]);
+      let groqErr: any = null;
+      let deepgramErr: any = null;
 
-      const groqText = groqResult.status === "fulfilled" ? groqResult.value : "";
-      const deepgramText = deepgramResult.status === "fulfilled" ? deepgramResult.value : "";
+      const [groqText, deepgramText] = await Promise.all([
+        this.groq.transcribe(convertedBuffer, language, boostWords).catch((err) => {
+          groqErr = err;
+          return "";
+        }),
+        this.deepgram.transcribe(convertedBuffer, language, boostWords).catch((err) => {
+          deepgramErr = err;
+          return "";
+        }),
+      ]);
 
       const handleTranscriptionError = (err: any, failedService: string) => {
         if (err?.message?.includes("Invalid API Key")) {
@@ -142,17 +148,14 @@ export class DaemonService {
         }
       };
 
-      if (groqResult.status === "rejected") {
-        handleTranscriptionError(groqResult.reason, "Groq");
+      if (groqErr) {
+        handleTranscriptionError(groqErr, "Groq");
       }
-      if (deepgramResult.status === "rejected") {
-        handleTranscriptionError(deepgramResult.reason, "Deepgram");
+      if (deepgramErr) {
+        handleTranscriptionError(deepgramErr, "Deepgram");
       }
 
       if (!groqText && !deepgramText) {
-        const groqErr = (groqResult as PromiseRejectedResult).reason;
-        const deepgramErr = (deepgramResult as PromiseRejectedResult).reason;
-
         if (groqErr?.message?.includes("timed out") && deepgramErr?.message?.includes("timed out")) {
           throw new Error("Transcription request timed out (both APIs)");
         }
@@ -166,8 +169,8 @@ export class DaemonService {
         finalText = groqText || deepgramText;
         
         const failedService = !groqText ? "Groq" : "Deepgram";
-        const result = !groqText ? groqResult : deepgramResult;
-        const reason = (result as PromiseRejectedResult).reason?.message || "Unknown error";
+        const error = !groqText ? groqErr : deepgramErr;
+        const reason = error?.message || "Unknown error";
         
         let warningMsg = `${failedService} failed, using fallback`;
         if (reason.includes("timed out")) {

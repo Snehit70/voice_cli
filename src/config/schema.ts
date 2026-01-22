@@ -100,7 +100,8 @@ export const ApiKeysSchema = z.object({
     .min(10, { message: "Groq API key is too short" }),
   deepgram: z
     .string()
-    .min(10, { message: "Deepgram API key is too short" }),
+    .min(32, { message: "Deepgram API key is too short" })
+    .regex(/^[a-fA-F0-9-]+$/, { message: "Deepgram API key must be a valid format (UUID or 40-char hex)" }),
 });
 
 export const BehaviorSchema = z.object({

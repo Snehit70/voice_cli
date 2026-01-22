@@ -13,7 +13,7 @@ export class DeepgramTranscriber {
 
   public async transcribe(audioBuffer: Buffer, language: string = "en", boostWords: string[] = []): Promise<string> {
     try {
-      return await withRetry(async (signal) => {
+      return await withRetry(async (_signal) => {
         const { result, error } = await this.client.listen.prerecorded.transcribeFile(
           audioBuffer,
           {
@@ -44,7 +44,7 @@ export class DeepgramTranscriber {
         timeout: 30000,
         shouldRetry: (error: any) => {
           const status = error?.status || (error?.message?.includes("401") ? 401 : undefined) || (error?.message?.includes("429") ? 429 : undefined);
-          return status !== 401;
+          return status !== 401 && status !== 429;
         }
       });
     } catch (error: any) {
@@ -57,7 +57,7 @@ export class DeepgramTranscriber {
       logError("Deepgram Nova-3 failed, trying fallback", error);
       
       try {
-        return await withRetry(async (signal) => {
+        return await withRetry(async (_signal) => {
           const { result, error: retryError } = await this.client.listen.prerecorded.transcribeFile(
             audioBuffer,
             {
