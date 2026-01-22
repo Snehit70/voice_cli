@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import { loadConfig, DEFAULT_CONFIG_FILE } from "../config/loader";
+import { loadConfig } from "../config/loader";
 import { saveConfig } from "../config/writer";
-import { logger } from "../utils/logger";
+import * as colors from "yoctocolors";
 
 export const boostCommand = new Command("boost")
   .description("Manage boost words (custom vocabulary)")
@@ -16,16 +16,16 @@ boostCommand
       const words = config.transcription.boostWords || [];
       
       if (words.length === 0) {
-        console.log("No boost words configured.");
+        console.log(colors.yellow("No boost words configured."));
         return;
       }
       
-      console.log(`Boost Words (${words.length}/450):`);
-      console.log("------------------------");
-      words.forEach((word) => console.log(`- ${word}`));
-      console.log("------------------------");
+      console.log(`${colors.bold("Boost Words")} (${colors.cyan(words.length.toString())}/450):`);
+      console.log(colors.dim("------------------------"));
+      words.forEach((word) => console.log(`${colors.green("-")} ${word}`));
+      console.log(colors.dim("------------------------"));
     } catch (error) {
-      console.error("Failed to list boost words:", (error as Error).message);
+      console.error(colors.red("Failed to list boost words:"), (error as Error).message);
     }
   });
 
@@ -40,12 +40,17 @@ boostCommand
       const newWords = words.filter(w => !currentWords.includes(w));
       
       if (newWords.length === 0) {
-        console.log("All words already exist in the list.");
+        console.log(colors.yellow("All words already exist in the list."));
         return;
       }
       
       const updatedWords = [...currentWords, ...newWords];
       
+      if (updatedWords.length > 450) {
+        console.error(colors.red(`Error: Cannot add ${newWords.length} words. Total would exceed 450 word limit.`));
+        return;
+      }
+
       const configToSave = {
         apiKeys: config.apiKeys,
         behavior: config.behavior,
@@ -57,10 +62,10 @@ boostCommand
       };
       
       saveConfig(configToSave);
-      console.log(`Added ${newWords.length} words.`);
-      console.log(`Total: ${updatedWords.length}/450`);
+      console.log(`${colors.green("✅")} Added ${colors.bold(newWords.length.toString())} words.`);
+      console.log(`${colors.dim("Total:")} ${colors.cyan(updatedWords.length.toString())}/450`);
     } catch (error) {
-      console.error("Failed to add boost words:", (error as Error).message);
+      console.error(colors.red("Failed to add boost words:"), (error as Error).message);
     }
   });
 
@@ -76,7 +81,7 @@ boostCommand
       const updatedWords = currentWords.filter(w => !wordsToRemove.has(w));
       
       if (updatedWords.length === currentWords.length) {
-        console.log("No matching words found to remove.");
+        console.log(colors.yellow("No matching words found to remove."));
         return;
       }
       
@@ -91,10 +96,10 @@ boostCommand
       };
       
       saveConfig(configToSave);
-      console.log(`Removed ${currentWords.length - updatedWords.length} words.`);
-      console.log(`Total: ${updatedWords.length}/450`);
+      console.log(`${colors.green("✅")} Removed ${colors.bold((currentWords.length - updatedWords.length).toString())} words.`);
+      console.log(`${colors.dim("Total:")} ${colors.cyan(updatedWords.length.toString())}/450`);
     } catch (error) {
-      console.error("Failed to remove boost words:", (error as Error).message);
+      console.error(colors.red("Failed to remove boost words:"), (error as Error).message);
     }
   });
 
@@ -106,7 +111,7 @@ boostCommand
       const config = loadConfig();
       
       if ((config.transcription.boostWords || []).length === 0) {
-        console.log("List is already empty.");
+        console.log(colors.yellow("List is already empty."));
         return;
       }
       
@@ -121,8 +126,8 @@ boostCommand
       };
       
       saveConfig(configToSave);
-      console.log("All boost words cleared.");
+      console.log(`${colors.green("✅")} All boost words cleared.`);
     } catch (error) {
-      console.error("Failed to clear boost words:", (error as Error).message);
+      console.error(colors.red("Failed to clear boost words:"), (error as Error).message);
     }
   });

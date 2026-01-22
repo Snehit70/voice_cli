@@ -9,73 +9,74 @@ import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { logger } from "../utils/logger";
 import { type DaemonState } from "../daemon/service";
+import * as colors from "yoctocolors";
 
 export const healthCommand = new Command("health")
   .description("Check system health and configuration")
   .action(async () => {
-    console.log("\n🔍 Voice-CLI Health Check");
-    console.log("=========================\n");
+    console.log(`\n${colors.bold(colors.cyan("🔍 Voice-CLI Health Check"))}`);
+    console.log(`${colors.cyan("=========================")}\n`);
 
     let allOk = true;
 
     // 1. Environment Check
-    console.log("--- Environment ---");
+    console.log(colors.bold("--- Environment ---"));
     const isWayland = process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === "wayland";
-    console.log(`OS:      ${process.platform}`);
-    console.log(`Session: ${isWayland ? "Wayland" : "X11"}`);
+    console.log(`${colors.dim("OS:")}      ${process.platform}`);
+    console.log(`${colors.dim("Session:")} ${isWayland ? colors.magenta("Wayland") : colors.blue("X11")}`);
 
     try {
       if (isWayland) {
         execSync("which wl-copy", { stdio: "ignore" });
-        console.log("✅ wl-clipboard found");
+        console.log(`${colors.green("✅")} wl-clipboard found`);
       } else {
         execSync("which xclip || which xsel", { stdio: "ignore" });
-        console.log("✅ xclip/xsel found");
+        console.log(`${colors.green("✅")} xclip/xsel found`);
       }
     } catch (e) {
-      console.log("❌ Clipboard tools missing (wl-clipboard or xclip/xsel)");
+      console.log(`${colors.red("❌")} Clipboard tools missing (wl-clipboard or xclip/xsel)`);
       allOk = false;
     }
 
     try {
       execSync("which notify-send", { stdio: "ignore" });
-      console.log("✅ libnotify (notify-send) found");
+      console.log(`${colors.green("✅")} libnotify (notify-send) found`);
     } catch (e) {
-      console.log("⚠️  libnotify missing (notifications may not work)");
+      console.log(`${colors.yellow("⚠️  libnotify missing (notifications may not work)")}`);
     }
 
     // 2. Configuration Check
-    console.log("\n--- Configuration ---");
+    console.log(`\n${colors.bold("--- Configuration ---")}`);
     let config: any;
     try {
       config = loadConfig();
-      console.log(`✅ Config loaded from ${DEFAULT_CONFIG_FILE}`);
+      console.log(`${colors.green("✅")} Config loaded from ${colors.dim(DEFAULT_CONFIG_FILE)}`);
       
       const stats = statSync(DEFAULT_CONFIG_FILE);
       const mode = stats.mode & 0o777;
       if (mode === 0o600) {
-        console.log("✅ Config file permissions are 600");
+        console.log(`${colors.green("✅")} Config file permissions are 600`);
       } else {
-        console.log(`⚠️  Config file permissions are ${mode.toString(8)} (recommended: 600)`);
+        console.log(`${colors.yellow("⚠️  Config file permissions are")} ${colors.bold(mode.toString(8))} ${colors.yellow("(recommended: 600)")}`);
       }
     } catch (e) {
-      console.log("❌ Config Error:", (e as Error).message);
+      console.log(`${colors.red("❌")} Config Error:`, colors.red((e as Error).message));
       allOk = false;
     }
 
     // 3. API Connectivity Check
     if (config) {
-      console.log("\n--- API Connectivity ---");
+      console.log(`\n${colors.bold("--- API Connectivity ---")}`);
       
       // Test Groq
       try {
         const groq = new GroqClient();
         const connected = await groq.checkConnection();
         if (connected) {
-          console.log("✅ Groq API: Connected");
+          console.log(`${colors.green("✅")} Groq API: ${colors.green("Connected")}`);
         }
       } catch (e) {
-        console.log("❌ Groq API Error:", (e as Error).message);
+        console.log(`${colors.red("❌")} Groq API Error:`, colors.red((e as Error).message));
         allOk = false;
       }
 
@@ -84,43 +85,43 @@ export const healthCommand = new Command("health")
         const deepgram = new DeepgramTranscriber();
         const connected = await deepgram.checkConnection();
         if (connected) {
-          console.log("✅ Deepgram API: Connected");
+          console.log(`${colors.green("✅")} Deepgram API: ${colors.green("Connected")}`);
         }
       } catch (e) {
-        console.log("❌ Deepgram API Error:", (e as Error).message);
+        console.log(`${colors.red("❌")} Deepgram API Error:`, colors.red((e as Error).message));
         allOk = false;
       }
     }
 
     // 4. Audio Check
-    console.log("\n--- Audio Devices ---");
+    console.log(`\n${colors.bold("--- Audio Devices ---")}`);
     try {
       const deviceService = new AudioDeviceService();
       const devices = await deviceService.listDevices();
       if (devices.length > 0) {
-        console.log(`✅ ${devices.length} audio devices found`);
+        console.log(`${colors.green("✅")} ${colors.bold(devices.length.toString())} audio devices found`);
         if (config?.behavior?.audioDevice) {
           const found = devices.find(d => d.id === config.behavior.audioDevice);
           if (found) {
-            console.log(`✅ Configured device found: ${found.description}`);
+            console.log(`${colors.green("✅")} Configured device found: ${colors.cyan(found.description)}`);
           } else {
-            console.log(`❌ Configured device not found: ${config.behavior.audioDevice}`);
+            console.log(`${colors.red("❌")} Configured device not found: ${colors.bold(config.behavior.audioDevice)}`);
             allOk = false;
           }
         } else {
-          console.log("ℹ️  Using default system microphone");
+          console.log(`${colors.blue("ℹ️")}  Using default system microphone`);
         }
       } else {
-        console.log("❌ No audio devices found");
+        console.log(`${colors.red("❌")} No audio devices found`);
         allOk = false;
       }
     } catch (e) {
-      console.log("❌ Audio Check Error:", (e as Error).message);
+      console.log(`${colors.red("❌")} Audio Check Error:`, colors.red((e as Error).message));
       allOk = false;
     }
 
     // 5. Daemon Check
-    console.log("\n--- Daemon Status ---");
+    console.log(`\n${colors.bold("--- Daemon Status ---")}`);
     const configDir = join(homedir(), ".config", "voice-cli");
     const pidFile = join(configDir, "daemon.pid");
     const stateFile = join(configDir, "daemon.state");
@@ -129,34 +130,44 @@ export const healthCommand = new Command("health")
       const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
       try {
         process.kill(pid, 0);
-        console.log(`✅ Daemon is running (PID: ${pid})`);
+        console.log(`${colors.green("✅")} Daemon is running (${colors.dim("PID: " + pid)})`);
         
         if (existsSync(stateFile)) {
           const state: DaemonState = JSON.parse(readFileSync(stateFile, "utf-8"));
-          console.log(`✅ Daemon State: ${state.status.toUpperCase()}`);
+          let statusColor = colors.blue;
+          if (state.status === "recording") statusColor = colors.red;
+          if (state.status === "processing") statusColor = colors.yellow;
+          if (state.status === "error") statusColor = colors.red;
+          if (state.status === "idle") statusColor = colors.green;
+
+          console.log(`${colors.green("✅")} Daemon State: ${statusColor(state.status.toUpperCase())}`);
           if (state.status === "error") {
-             console.log(`⚠️  Last Daemon Error: ${state.lastError}`);
+             console.log(`${colors.yellow("⚠️")}  Last Daemon Error: ${colors.red(state.lastError || "Unknown error")}`);
           }
         }
       } catch (e) {
-        console.log("⚠️  Daemon PID file exists but process is dead");
+        console.log(`${colors.yellow("⚠️  Daemon PID file exists but process is dead")}`);
       }
     } else {
-      console.log("ℹ️  Daemon is not running");
+      console.log(`${colors.blue("ℹ️")}  Daemon is not running`);
     }
 
     try {
       const isServiceActive = execSync("systemctl --user is-active voice-cli", { stdio: "pipe" }).toString().trim();
-      console.log(`✅ systemd service: ${isServiceActive}`);
+      if (isServiceActive === "active") {
+        console.log(`${colors.green("✅")} systemd service: ${colors.green("active")}`);
+      } else {
+        console.log(`${colors.yellow("⚠️")}  systemd service: ${colors.yellow(isServiceActive)}`);
+      }
     } catch (e) {
-      console.log("ℹ️  systemd service not active or not installed");
+      console.log(`${colors.blue("ℹ️")}  systemd service not active or not installed`);
     }
 
-    console.log("\n-------------------------");
+    console.log(`\n${colors.cyan("-------------------------")}`);
     if (allOk) {
-      console.log("✅ System health check passed!");
+      console.log(`${colors.bold(colors.green("✅ System health check passed!"))}`);
     } else {
-      console.log("❌ System health check failed. Please check the issues above.");
+      console.log(`${colors.bold(colors.red("❌ System health check failed. Please check the issues above."))}`);
     }
-    console.log("-------------------------\n");
+    console.log(`${colors.cyan("-------------------------")}\n`);
   });

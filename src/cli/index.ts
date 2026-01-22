@@ -6,11 +6,11 @@ import { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync } from "
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
-import { loadConfig } from "../config/loader";
 import { loadStats } from "../utils/stats";
 import { boostCommand } from "./boost";
 import { healthCommand } from "./health";
 import { errorsCommand } from "./errors";
+import * as colors from "yoctocolors";
 
 const program = new Command();
 const configDir = join(homedir(), ".config", "voice-cli");
@@ -41,11 +41,11 @@ program
     }
 
     if (options.supervisor && !process.env.VOICE_CLI_DAEMON_WORKER) {
-      console.log("Starting daemon with supervisor...");
+      console.log(`${colors.cyan("Starting daemon with supervisor...")}`);
       const supervisor = new DaemonSupervisor(join(process.cwd(), "index.ts"));
       supervisor.start();
     } else {
-      console.log("Starting daemon worker...");
+      console.log(`${colors.cyan("Starting daemon worker...")}`);
       const service = new DaemonService();
       service.start().catch(() => process.exit(1));
 
@@ -73,11 +73,11 @@ program
     try {
       const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
       process.kill(pid, "SIGTERM");
-      console.log(`Stopped daemon (PID: ${pid})`);
+      console.log(`${colors.green("✅")} Stopped daemon (${colors.dim("PID: " + pid)})`);
       
       if (existsSync(stateFile)) unlinkSync(stateFile);
     } catch (error) {
-      console.error("Failed to stop daemon:", error);
+      console.error(colors.red("Failed to stop daemon:"), error);
       if (existsSync(pidFile)) unlinkSync(pidFile);
     }
   });
@@ -89,10 +89,10 @@ program
     if (existsSync(pidFile)) {
       const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
       process.kill(pid, "SIGTERM");
-      console.log("Stopping daemon...");
+      console.log(colors.yellow("Stopping daemon..."));
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    console.log("Starting daemon...");
+    console.log(colors.cyan("Starting daemon..."));
     const supervisor = new DaemonSupervisor(join(process.cwd(), "index.ts"));
     supervisor.start();
   });
@@ -102,37 +102,45 @@ program
   .description("Show daemon status")
   .action(() => {
     if (!existsSync(pidFile)) {
-      console.log("Status: Stopped");
+      console.log(`${colors.dim("Status:")} ${colors.red("Stopped")}`);
       const stats = loadStats();
-      console.log(`Today:  ${stats.today}`);
-      console.log(`Total:  ${stats.total}`);
+      console.log(`${colors.dim("Today:")}  ${colors.bold(stats.today.toString())}`);
+      console.log(`${colors.dim("Total:")}  ${colors.bold(stats.total.toString())}`);
       return;
     }
 
     const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
     try {
       process.kill(pid, 0);
-      console.log(`Status: Running (PID: ${pid})`);
+      console.log(`${colors.dim("Status:")} ${colors.green("Running")} (${colors.dim("PID: " + pid)})`);
       
       if (existsSync(stateFile)) {
         const state: DaemonState = JSON.parse(readFileSync(stateFile, "utf-8"));
-        console.log(`State:  ${state.status.toUpperCase()}`);
-        console.log(`Uptime: ${state.uptime}s`);
-        console.log(`Today:  ${state.transcriptionCountToday}`);
-        console.log(`Total:  ${state.transcriptionCountTotal}`);
-        console.log(`Errors: ${state.errorCount}`);
+        
+        let statusColor = colors.blue;
+        if (state.status === "recording") statusColor = colors.red;
+        if (state.status === "processing") statusColor = colors.yellow;
+        if (state.status === "error") statusColor = colors.red;
+        if (state.status === "idle") statusColor = colors.green;
+
+        console.log(`${colors.dim("State:")}  ${statusColor(state.status.toUpperCase())}`);
+        console.log(`${colors.dim("Uptime:")} ${state.uptime}s`);
+        console.log(`${colors.dim("Today:")}  ${colors.bold(state.transcriptionCountToday.toString())}`);
+        console.log(`${colors.dim("Total:")}  ${colors.bold(state.transcriptionCountTotal.toString())}`);
+        console.log(`${colors.dim("Errors:")} ${state.errorCount > 0 ? colors.red(state.errorCount.toString()) : colors.green("0")}`);
+        
         if (state.lastTranscription) {
-          console.log(`Last:   ${new Date(state.lastTranscription).toLocaleString()}`);
+          console.log(`${colors.dim("Last:")}   ${new Date(state.lastTranscription).toLocaleString()}`);
         }
         if (state.lastError) {
-          console.log(`Error:  ${state.lastError}`);
+          console.log(`${colors.red("Error:")}  ${colors.red(state.lastError)}`);
         }
       }
     } catch (e) {
-      console.log("Status: Dead (PID file exists but process is not running)");
+      console.log(`${colors.dim("Status:")} ${colors.yellow("Dead")} ${colors.dim("(PID file exists but process is not running)")}`);
       const stats = loadStats();
-      console.log(`Today:  ${stats.today}`);
-      console.log(`Total:  ${stats.total}`);
+      console.log(`${colors.dim("Today:")}  ${colors.bold(stats.today.toString())}`);
+      console.log(`${colors.dim("Total:")}  ${colors.bold(stats.total.toString())}`);
     }
   });
 

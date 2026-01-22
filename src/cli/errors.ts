@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { loadConfig } from "../config/loader";
-import * as colorette from "colorette";
+import * as colors from "yoctocolors";
 
 export const errorsCommand = new Command("errors")
   .description("Display the last error from the logs")
@@ -19,7 +19,7 @@ export const errorsCommand = new Command("errors")
     }
 
     if (!existsSync(logDir)) {
-      console.log(colorette.yellow("Log directory does not exist."));
+      console.log(colors.yellow("Log directory does not exist."));
       return;
     }
 
@@ -29,7 +29,7 @@ export const errorsCommand = new Command("errors")
         .sort((a, b) => b.localeCompare(a));
 
       if (files.length === 0) {
-        console.log(colorette.yellow("No log files found."));
+        console.log(colors.yellow("No log files found."));
         return;
       }
 
@@ -44,8 +44,10 @@ export const errorsCommand = new Command("errors")
         const lines = content.split("\n").filter(line => line.trim() !== "");
         
         for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i];
+          if (!line) continue;
           try {
-            const entry = JSON.parse(lines[i]);
+            const entry = JSON.parse(line);
             if (entry.level === 50) {
               errorsFound.push({
                 file,
@@ -59,29 +61,29 @@ export const errorsCommand = new Command("errors")
       }
 
       if (errorsFound.length === 0) {
-        console.log(colorette.green("No errors found in the logs."));
+        console.log(colors.green("No errors found in the logs."));
         return;
       }
 
-      console.log(colorette.bold(colorette.red(`Last ${errorsFound.length} error(s):`)));
+      console.log(colors.bold(colors.red(`Last ${errorsFound.length} error(s):`)));
       errorsFound.forEach((err) => {
-        console.log(colorette.gray("------------------------------------------------"));
-        console.log(`${colorette.bold("Timestamp:")} ${new Date(err.time).toLocaleString()}`);
-        console.log(`${colorette.bold("Message:  ")} ${colorette.red(err.msg)}`);
+        console.log(colors.dim("------------------------------------------------"));
+        console.log(`${colors.bold("Timestamp:")} ${new Date(err.time).toLocaleString()}`);
+        console.log(`${colors.bold("Message:  ")} ${colors.red(err.msg)}`);
         if (err.err) {
-          console.log(`${colorette.bold("Type:     ")} ${err.err.type}`);
-          console.log(`${colorette.bold("Stack:    ")} ${err.err.stack}`);
+          console.log(`${colors.bold("Type:     ")} ${err.err.type}`);
+          console.log(`${colors.bold("Stack:    ")} ${colors.dim(err.err.stack)}`);
         } else if (err.error) {
-          console.log(`${colorette.bold("Error:    ")} ${JSON.stringify(err.error, null, 2)}`);
+          console.log(`${colors.bold("Error:    ")} ${colors.dim(JSON.stringify(err.error, null, 2))}`);
         }
         if (err.context) {
-          console.log(`${colorette.bold("Context:  ")} ${JSON.stringify(err.context, null, 2)}`);
+          console.log(`${colors.bold("Context:  ")} ${colors.dim(JSON.stringify(err.context, null, 2))}`);
         }
-        console.log(`${colorette.bold("Source:   ")} ${err.file}`);
+        console.log(`${colors.bold("Source:   ")} ${colors.dim(err.file)}`);
       });
-      console.log(colorette.gray("------------------------------------------------"));
+      console.log(colors.dim("------------------------------------------------"));
 
     } catch (error) {
-      console.error(colorette.red("Failed to read errors:"), error);
+      console.error(colors.red("Failed to read errors:"), error);
     }
   });
