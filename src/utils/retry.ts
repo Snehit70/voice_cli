@@ -9,7 +9,7 @@ interface RetryOptions {
 }
 
 export async function withRetry<T>(
-  operation: () => Promise<T>,
+  operation: (signal?: AbortSignal) => Promise<T>,
   options: RetryOptions = {}
 ): Promise<T> {
   const maxRetries = options.maxRetries ?? 2;
@@ -21,26 +21,31 @@ export async function withRetry<T>(
   let lastError: any;
 
   for (let i = 0; i <= maxRetries; i++) {
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
     try {
       if (timeoutMs) {
-        return await new Promise<T>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            reject(new Error(`${opName} timed out after ${timeoutMs}ms`));
-          }, timeoutMs);
+        timeout = setTimeout(() => {
+          controller.abort();
+        }, timeoutMs);
 
-          operation()
-            .then((result) => {
-              clearTimeout(timer);
-              resolve(result);
-            })
-            .catch((err) => {
-              clearTimeout(timer);
-              reject(err);
+        const result = await Promise.race([
+          operation(controller.signal),
+          new Promise<never>((_, reject) => {
+            controller.signal.addEventListener("abort", () => {
+              reject(new Error(`${opName} timed out after ${timeoutMs}ms`));
             });
-        });
+          })
+        ]);
+        
+        if (timeout) clearTimeout(timeout);
+        return result;
       }
+      
       return await operation();
-    } catch (error) {
+    } catch (error: any) {
+      if (timeout) clearTimeout(timeout);
       lastError = error;
       
       if (!shouldRetry(error)) {

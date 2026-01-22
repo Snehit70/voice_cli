@@ -197,9 +197,15 @@ export class DaemonService {
         finalLength: finalText.length 
       }, "Transcription complete");
 
-    } catch (error) {
+    } catch (error: any) {
       logError("Processing failed", error);
-      notify("Error", "Transcription failed. Check logs.", "error");
+      
+      let message = "Transcription failed. Check logs.";
+      if (error?.message?.includes("timed out")) {
+        message = "Transcription timed out. Please check your internet connection.";
+      }
+      
+      notify("Error", message, "error");
     } finally {
       this.status = "idle";
     }

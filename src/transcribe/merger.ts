@@ -21,7 +21,7 @@ export class TranscriptMerger {
     if (groqText === deepgramText) return deepgramText;
 
     try {
-      const completion = await withRetry(async () => {
+      const completion = await withRetry(async (signal) => {
         return await this.client.chat.completions.create({
           messages: [
             {
@@ -49,6 +49,10 @@ ${deepgramText}`,
           model: "llama-3.3-70b-versatile",
           temperature: 0.1,
           max_tokens: 4096,
+        }, { 
+          signal,
+          timeout: 30000,
+          maxRetries: 0
         });
       }, {
         operationName: "LLM Merge",
@@ -66,6 +70,8 @@ ${deepgramText}`,
     } catch (error: any) {
       if (error?.status === 429) {
         logError("LLM merge skipped (Rate Limit)", error);
+      } else if (error?.message?.includes("timed out")) {
+        logError("LLM merge skipped (Timeout)", error);
       } else {
         logError("LLM merge failed", error);
       }

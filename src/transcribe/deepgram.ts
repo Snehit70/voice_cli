@@ -13,7 +13,7 @@ export class DeepgramTranscriber {
 
   public async transcribe(audioBuffer: Buffer, language: string = "en", boostWords: string[] = []): Promise<string> {
     try {
-      return await withRetry(async () => {
+      return await withRetry(async (signal) => {
         const { result, error } = await this.client.listen.prerecorded.transcribeFile(
           audioBuffer,
           {
@@ -57,7 +57,7 @@ export class DeepgramTranscriber {
       logError("Deepgram Nova-3 failed, trying fallback", error);
       
       try {
-        return await withRetry(async () => {
+        return await withRetry(async (signal) => {
           const { result, error: retryError } = await this.client.listen.prerecorded.transcribeFile(
             audioBuffer,
             {
@@ -94,6 +94,9 @@ export class DeepgramTranscriber {
         }
         if (retryError?.status === 429 || retryError?.message?.includes("429")) {
           throw new Error("Deepgram: Rate limit exceeded");
+        }
+        if (retryError?.message?.includes("timed out")) {
+          throw new Error("Deepgram: Request timed out");
         }
         logError("Deepgram fallback failed", retryError);
         throw retryError;

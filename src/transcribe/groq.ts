@@ -24,7 +24,7 @@ export class GroqClient {
     try {
       writeFileSync(tempFile, audioBuffer);
       
-      return await withRetry(async () => {
+      return await withRetry(async (signal) => {
         const stream = createReadStream(tempFile);
         const prompt = boostWords.length > 0 ? `Keywords: ${boostWords.join(", ")}` : undefined;
 
@@ -34,6 +34,10 @@ export class GroqClient {
           language: language,
           prompt: prompt,
           response_format: "json",
+        }, { 
+          signal,
+          timeout: 30000,
+          maxRetries: 0
         });
 
         return completion.text.trim();
@@ -53,6 +57,9 @@ export class GroqClient {
       }
       if (error?.status === 429) {
         throw new Error("Groq: Rate limit exceeded");
+      }
+      if (error?.message?.includes("timed out")) {
+        throw new Error("Groq: Request timed out");
       }
       logError("Groq transcription failed", error);
       throw error;
