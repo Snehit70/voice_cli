@@ -1,246 +1,268 @@
+import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { record, type Recording } from "node-record-lpcm16";
-import { logError, logger } from "../utils/logger";
+import { type Recording, record } from "node-record-lpcm16";
 import { loadConfig } from "../config/loader";
 import { AppError, type ErrorCode } from "../utils/errors";
+import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
-import { execSync } from "node:child_process";
 
 export class AudioRecorder extends EventEmitter {
-  private recording: Recording | null = null;
-  private chunks: Buffer[] = [];
-  private startTime: number = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  private warningTimer4m: ReturnType<typeof setTimeout> | null = null;
-  private warningTimer430m: ReturnType<typeof setTimeout> | null = null;
-  private minDuration: number = 600;
-  private maxDuration: number = 300000;
-  private readonly WARNING_4M = 240000;
-  private readonly WARNING_430M = 270000;
+	private recording: Recording | null = null;
+	private chunks: Buffer[] = [];
+	private startTime: number = 0;
+	private timer: ReturnType<typeof setTimeout> | null = null;
+	private warningTimer4m: ReturnType<typeof setTimeout> | null = null;
+	private warningTimer430m: ReturnType<typeof setTimeout> | null = null;
+	private minDuration: number = 600;
+	private maxDuration: number = 300000;
+	private readonly WARNING_4M = 240000;
+	private readonly WARNING_430M = 270000;
 
-  constructor() {
-    super();
-    this.loadSettings();
-  }
+	constructor() {
+		super();
+		this.loadSettings();
+	}
 
-  private loadSettings() {
-    try {
-      const config = loadConfig();
-      this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
-      this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
-    } catch (e) {
-    }
-  }
+	private loadSettings() {
+		try {
+			const config = loadConfig();
+			this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
+			this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
+		} catch (_e) {}
+	}
 
-  public isRecording(): boolean {
-    return this.recording !== null;
-  }
+	public isRecording(): boolean {
+		return this.recording !== null;
+	}
 
-  public async start(): Promise<void> {
-    if (this.isRecording()) {
-      throw new AppError("ALREADY_RECORDING", "Already recording");
-    }
+	public async start(): Promise<void> {
+		if (this.isRecording()) {
+			throw new AppError("ALREADY_RECORDING", "Already recording");
+		}
 
-    this.loadSettings();
-    this.chunks = [];
-    this.startTime = Date.now();
+		this.loadSettings();
+		this.chunks = [];
+		this.startTime = Date.now();
 
-    const config = loadConfig();
-    
-    try {
-      execSync("arecord --version", { stdio: "ignore" });
-    } catch (e) {
-      throw new AppError("AUDIO_BACKEND_MISSING", "Audio recording backend 'arecord' is not installed or not in PATH.");
-    }
+		const config = loadConfig();
 
-    await withRetry(async () => {
-      return new Promise<void>((resolve, reject) => {
-        try {
-          this.recording = record({
-            sampleRate: 16000,
-            channels: 1,
-            audioType: "wav",
-            recorder: "arecord",
-            device: config.behavior.audioDevice,
-          });
+		try {
+			execSync("arecord --version", { stdio: "ignore" });
+		} catch (_e) {
+			throw new AppError(
+				"AUDIO_BACKEND_MISSING",
+				"Audio recording backend 'arecord' is not installed or not in PATH.",
+			);
+		}
 
-          let stderrOutput = "";
-          if (this.recording.process && this.recording.process.stderr) {
-            this.recording.process.stderr.on("data", (chunk: Buffer) => {
-              stderrOutput += chunk.toString();
-            });
-          }
+		await withRetry(
+			async () => {
+				return new Promise<void>((resolve, reject) => {
+					try {
+						this.recording = record({
+							sampleRate: 16000,
+							channels: 1,
+							audioType: "wav",
+							recorder: "arecord",
+							device: config.behavior.audioDevice,
+						});
 
-          const stream = this.recording.stream();
-          let streamStarted = false;
+						let stderrOutput = "";
+						if (this.recording.process?.stderr) {
+							this.recording.process.stderr.on("data", (chunk: Buffer) => {
+								stderrOutput += chunk.toString();
+							});
+						}
 
-          stream.on("data", (chunk: Buffer) => {
-            if (!streamStarted) {
-              streamStarted = true;
-              resolve();
-            }
-            this.chunks.push(chunk);
-          });
+						const stream = this.recording.stream();
+						let streamStarted = false;
 
-          stream.once("error", (err: unknown) => {
-            let errorMessage = err instanceof Error ? err.message : String(err);
-            let errorCode: ErrorCode = "UNKNOWN_ERROR";
-            
-            if (stderrOutput) {
-              if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
-                errorMessage = "No microphone detected. Please check if your microphone is connected and configured correctly.";
-                errorCode = "NO_MICROPHONE";
-              } else if (stderrOutput.includes("Device or resource busy")) {
-                errorMessage = "Microphone is busy. Another application might be using it.";
-                errorCode = "DEVICE_BUSY";
-              } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
-                errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
-                errorCode = "PERMISSION_DENIED";
-              } else {
-                errorMessage = `${errorMessage}. Details: ${stderrOutput.trim()}`;
-              }
-            }
+						stream.on("data", (chunk: Buffer) => {
+							if (!streamStarted) {
+								streamStarted = true;
+								resolve();
+							}
+							this.chunks.push(chunk);
+						});
 
-            const enhancedError = new AppError(errorCode, errorMessage, { stderr: stderrOutput });
-            
-            if (!streamStarted) {
-              this.cleanupRecording();
-              reject(enhancedError);
-            } else {
-              logError("Audio stream error", enhancedError, { stderr: stderrOutput });
-              this.emit("error", enhancedError);
-              this.stop(true);
-            }
-          });
+						stream.once("error", (err: unknown) => {
+							let errorMessage =
+								err instanceof Error ? err.message : String(err);
+							let errorCode: ErrorCode = "UNKNOWN_ERROR";
 
-          // Fallback resolve if no data for 500ms but no error yet
-          setTimeout(() => {
-            if (!streamStarted && this.recording) {
-              streamStarted = true;
-              resolve();
-            }
-          }, 500);
+							if (stderrOutput) {
+								if (
+									stderrOutput.includes("No such file or directory") ||
+									stderrOutput.includes("No such device")
+								) {
+									errorMessage =
+										"No microphone detected. Please check if your microphone is connected and configured correctly.";
+									errorCode = "NO_MICROPHONE";
+								} else if (stderrOutput.includes("Device or resource busy")) {
+									errorMessage =
+										"Microphone is busy. Another application might be using it.";
+									errorCode = "DEVICE_BUSY";
+								} else if (
+									stderrOutput.includes("Permission denied") ||
+									stderrOutput.includes("audio open error")
+								) {
+									errorMessage =
+										"Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
+									errorCode = "PERMISSION_DENIED";
+								} else {
+									errorMessage = `${errorMessage}. Details: ${stderrOutput.trim()}`;
+								}
+							}
 
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }, {
-      operationName: "Start recording",
-      maxRetries: 2,
-      backoffs: [100, 200],
-      shouldRetry: (err) => {
-        return err instanceof AppError && err.code === "DEVICE_BUSY";
-      }
-    });
+							const enhancedError = new AppError(errorCode, errorMessage, {
+								stderr: stderrOutput,
+							});
 
-    this.setupTimers();
-    logger.info({ device: config.behavior.audioDevice }, "Recording started");
-    this.emit("start");
-  }
+							if (!streamStarted) {
+								this.cleanupRecording();
+								reject(enhancedError);
+							} else {
+								logError("Audio stream error", enhancedError, {
+									stderr: stderrOutput,
+								});
+								this.emit("error", enhancedError);
+								this.stop(true);
+							}
+						});
 
-  private setupTimers() {
-    this.cleanupTimers();
-    
-    this.warningTimer4m = setTimeout(() => {
-      logger.warn("Recording limit approaching (4m)");
-      this.emit("warning", "Recording limit approaching (4m)");
-    }, this.WARNING_4M);
+						// Fallback resolve if no data for 500ms but no error yet
+						setTimeout(() => {
+							if (!streamStarted && this.recording) {
+								streamStarted = true;
+								resolve();
+							}
+						}, 500);
+					} catch (error) {
+						reject(error);
+					}
+				});
+			},
+			{
+				operationName: "Start recording",
+				maxRetries: 2,
+				backoffs: [100, 200],
+				shouldRetry: (err) => {
+					return err instanceof AppError && err.code === "DEVICE_BUSY";
+				},
+			},
+		);
 
-    this.warningTimer430m = setTimeout(() => {
-      logger.warn("Recording limit approaching (4m 30s)");
-      this.emit("warning", "Recording limit approaching (4m 30s)");
-    }, this.WARNING_430M);
+		this.setupTimers();
+		logger.info({ device: config.behavior.audioDevice }, "Recording started");
+		this.emit("start");
+	}
 
-    this.timer = setTimeout(() => {
-      logger.warn("Recording limit reached (5m). Auto-stopping.");
-      this.emit("warning", "Recording limit reached (5m). Stopping...");
-      this.stop();
-    }, this.maxDuration);
-  }
+	private setupTimers() {
+		this.cleanupTimers();
 
-  public async stop(force = false): Promise<Buffer | null> {
-    if (!this.isRecording()) {
-      return null;
-    }
+		this.warningTimer4m = setTimeout(() => {
+			logger.warn("Recording limit approaching (4m)");
+			this.emit("warning", "Recording limit approaching (4m)");
+		}, this.WARNING_4M);
 
-    const duration = Date.now() - this.startTime;
-    this.cleanupTimers();
+		this.warningTimer430m = setTimeout(() => {
+			logger.warn("Recording limit approaching (4m 30s)");
+			this.emit("warning", "Recording limit approaching (4m 30s)");
+		}, this.WARNING_430M);
 
-    const audioBuffer = Buffer.concat(this.chunks);
-    this.cleanupRecording();
+		this.timer = setTimeout(() => {
+			logger.warn("Recording limit reached (5m). Auto-stopping.");
+			this.emit("warning", "Recording limit reached (5m). Stopping...");
+			this.stop();
+		}, this.maxDuration);
+	}
 
-    if (!force) {
-      if (duration < this.minDuration) {
-        logger.warn(`Recording too short: ${duration}ms`);
-        this.emit("error", new AppError("RECORDING_TOO_SHORT", "Recording too short"));
-        return null;
-      }
+	public async stop(force = false): Promise<Buffer | null> {
+		if (!this.isRecording()) {
+			return null;
+		}
 
-      if (this.isSilent(audioBuffer)) {
-        logger.warn("Silent audio detected");
-        this.emit("warning", "No audio detected");
-      }
-    }
+		const duration = Date.now() - this.startTime;
+		this.cleanupTimers();
 
-    logger.info(`Recording stopped. Duration: ${duration}ms. Size: ${audioBuffer.length} bytes`);
-    this.emit("stop", audioBuffer, duration);
-    return audioBuffer;
-  }
+		const audioBuffer = Buffer.concat(this.chunks);
+		this.cleanupRecording();
 
-  private cleanupTimers() {
-    if (this.timer) clearTimeout(this.timer);
-    if (this.warningTimer4m) clearTimeout(this.warningTimer4m);
-    if (this.warningTimer430m) clearTimeout(this.warningTimer430m);
-    this.timer = null;
-    this.warningTimer4m = null;
-    this.warningTimer430m = null;
-  }
+		if (!force) {
+			if (duration < this.minDuration) {
+				logger.warn(`Recording too short: ${duration}ms`);
+				this.emit(
+					"error",
+					new AppError("RECORDING_TOO_SHORT", "Recording too short"),
+				);
+				return null;
+			}
 
-  private cleanupRecording() {
-    if (this.recording) {
-      try {
-        this.recording.stop();
-      } catch (e) {
-        logError("Error stopping recording", e);
-      }
-      this.recording = null;
-    }
-    this.chunks = [];
-  }
+			if (this.isSilent(audioBuffer)) {
+				logger.warn("Silent audio detected");
+				this.emit("warning", "No audio detected");
+			}
+		}
 
-  private isSilent(buffer: Buffer): boolean {
-    if (buffer.length <= 44) return true;
-    
-    // Skip WAV header (44 bytes) if it exists
-    const dataOffset = buffer.subarray(0, 4).toString() === "RIFF" ? 44 : 0;
-    const samplesBuffer = buffer.subarray(dataOffset);
-    
-    if (samplesBuffer.length === 0) return true;
+		logger.info(
+			`Recording stopped. Duration: ${duration}ms. Size: ${audioBuffer.length} bytes`,
+		);
+		this.emit("stop", audioBuffer, duration);
+		return audioBuffer;
+	}
 
-    // Ensure we don't have an odd number of bytes for Int16
-    const length = Math.floor(samplesBuffer.length / 2) * 2;
-    const int16Array = new Int16Array(
-      samplesBuffer.buffer, 
-      samplesBuffer.byteOffset, 
-      length / 2
-    );
-    
-    const sampleCount = int16Array.length;
-    const step = Math.max(1, Math.floor(sampleCount / 1000)); // Sample ~1000 points
-    let sumSquares = 0;
-    let countedSamples = 0;
-    
-    for (let i = 0; i < sampleCount; i += step) {
-      const sample = int16Array[i] as number;
-      sumSquares += sample * sample;
-      countedSamples++;
-    }
-    
-    const rms = Math.sqrt(sumSquares / (countedSamples || 1));
-    const threshold = 100; // Low threshold for silence
-    
-    return rms < threshold;
-  }
+	private cleanupTimers() {
+		if (this.timer) clearTimeout(this.timer);
+		if (this.warningTimer4m) clearTimeout(this.warningTimer4m);
+		if (this.warningTimer430m) clearTimeout(this.warningTimer430m);
+		this.timer = null;
+		this.warningTimer4m = null;
+		this.warningTimer430m = null;
+	}
+
+	private cleanupRecording() {
+		if (this.recording) {
+			try {
+				this.recording.stop();
+			} catch (e) {
+				logError("Error stopping recording", e);
+			}
+			this.recording = null;
+		}
+		this.chunks = [];
+	}
+
+	private isSilent(buffer: Buffer): boolean {
+		if (buffer.length <= 44) return true;
+
+		// Skip WAV header (44 bytes) if it exists
+		const dataOffset = buffer.subarray(0, 4).toString() === "RIFF" ? 44 : 0;
+		const samplesBuffer = buffer.subarray(dataOffset);
+
+		if (samplesBuffer.length === 0) return true;
+
+		// Ensure we don't have an odd number of bytes for Int16
+		const length = Math.floor(samplesBuffer.length / 2) * 2;
+		const int16Array = new Int16Array(
+			samplesBuffer.buffer,
+			samplesBuffer.byteOffset,
+			length / 2,
+		);
+
+		const sampleCount = int16Array.length;
+		const step = Math.max(1, Math.floor(sampleCount / 1000)); // Sample ~1000 points
+		let sumSquares = 0;
+		let countedSamples = 0;
+
+		for (let i = 0; i < sampleCount; i += step) {
+			const sample = int16Array[i] as number;
+			sumSquares += sample * sample;
+			countedSamples++;
+		}
+
+		const rms = Math.sqrt(sumSquares / (countedSamples || 1));
+		const threshold = 100; // Low threshold for silence
+
+		return rms < threshold;
+	}
 }
-

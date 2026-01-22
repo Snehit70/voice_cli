@@ -1,344 +1,386 @@
-import { AudioRecorder } from "../audio/recorder";
-import { HotkeyListener } from "./hotkey";
-import { checkHotkeyConflict } from "./conflict";
-import { GroqClient } from "../transcribe/groq";
-import { DeepgramTranscriber } from "../transcribe/deepgram";
-import { TranscriptMerger } from "../transcribe/merger";
-import { convertAudio } from "../audio/converter";
-import { ClipboardManager, ClipboardAccessError } from "../output/clipboard";
-import { notify } from "../output/notification";
-import { logger, logError } from "../utils/logger";
-import { ErrorTemplates, formatUserError } from "../utils/error-templates";
-import { loadConfig } from "../config/loader";
-import { loadStats, incrementTranscriptionCount } from "../utils/stats";
-import { appendHistory } from "../utils/history";
-import { writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { AppError, TranscriptionError } from "../utils/errors";
+import { join } from "node:path";
+import { convertAudio } from "../audio/converter";
+import { AudioRecorder } from "../audio/recorder";
+import { loadConfig } from "../config/loader";
+import { ClipboardAccessError, ClipboardManager } from "../output/clipboard";
+import { notify } from "../output/notification";
+import { DeepgramTranscriber } from "../transcribe/deepgram";
+import { GroqClient } from "../transcribe/groq";
+import { TranscriptMerger } from "../transcribe/merger";
+import { ErrorTemplates, formatUserError } from "../utils/error-templates";
 import type { ErrorCode } from "../utils/errors";
+import { AppError } from "../utils/errors";
+import { appendHistory } from "../utils/history";
+import { logError, logger } from "../utils/logger";
+import { incrementTranscriptionCount, loadStats } from "../utils/stats";
+import { checkHotkeyConflict } from "./conflict";
+import { HotkeyListener } from "./hotkey";
 
-type DaemonStatus = "idle" | "starting" | "recording" | "stopping" | "processing" | "error";
+type DaemonStatus =
+	| "idle"
+	| "starting"
+	| "recording"
+	| "stopping"
+	| "processing"
+	| "error";
 
 export interface DaemonState {
-  status: DaemonStatus;
-  pid: number;
-  uptime: number;
-  lastTranscription?: string;
-  transcriptionCountToday: number;
-  transcriptionCountTotal: number;
-  errorCount: number;
-  lastError?: string;
+	status: DaemonStatus;
+	pid: number;
+	uptime: number;
+	lastTranscription?: string;
+	transcriptionCountToday: number;
+	transcriptionCountTotal: number;
+	errorCount: number;
+	lastError?: string;
 }
 
 export class DaemonService {
-  private status: DaemonStatus = "idle";
-  private recorder: AudioRecorder;
-  private hotkeyListener: HotkeyListener;
-  private groq: GroqClient;
-  private deepgram: DeepgramTranscriber;
-  private merger: TranscriptMerger;
-  private clipboard: ClipboardManager;
-  private pidFile: string;
-  private stateFile: string;
-  private lastTranscription?: Date;
-  private transcriptionCountToday: number = 0;
-  private transcriptionCountTotal: number = 0;
-  private errorCount: number = 0;
-  private lastError?: string;
-  private startTime: number = Date.now();
-  private signalHandler: () => void;
+	private status: DaemonStatus = "idle";
+	private recorder: AudioRecorder;
+	private hotkeyListener: HotkeyListener;
+	private groq: GroqClient;
+	private deepgram: DeepgramTranscriber;
+	private merger: TranscriptMerger;
+	private clipboard: ClipboardManager;
+	private pidFile: string;
+	private stateFile: string;
+	private lastTranscription?: Date;
+	private transcriptionCountToday: number = 0;
+	private transcriptionCountTotal: number = 0;
+	private errorCount: number = 0;
+	private lastError?: string;
+	private startTime: number = Date.now();
+	private signalHandler: () => void;
 
-  constructor() {
-    this.recorder = new AudioRecorder();
-    this.hotkeyListener = new HotkeyListener();
-    this.groq = new GroqClient();
-    this.deepgram = new DeepgramTranscriber();
-    this.merger = new TranscriptMerger();
-    this.clipboard = new ClipboardManager();
-    const configDir = join(homedir(), ".config", "voice-cli");
-    this.pidFile = join(configDir, "daemon.pid");
-    this.stateFile = join(configDir, "daemon.state");
+	constructor() {
+		this.recorder = new AudioRecorder();
+		this.hotkeyListener = new HotkeyListener();
+		this.groq = new GroqClient();
+		this.deepgram = new DeepgramTranscriber();
+		this.merger = new TranscriptMerger();
+		this.clipboard = new ClipboardManager();
+		const configDir = join(homedir(), ".config", "voice-cli");
+		this.pidFile = join(configDir, "daemon.pid");
+		this.stateFile = join(configDir, "daemon.state");
 
-    const stats = loadStats();
-    this.transcriptionCountToday = stats.today;
-    this.transcriptionCountTotal = stats.total;
+		const stats = loadStats();
+		this.transcriptionCountToday = stats.today;
+		this.transcriptionCountTotal = stats.total;
 
-    this.signalHandler = () => {
-      logger.info("Received SIGUSR1 signal, toggling recording");
-      this.handleTrigger();
-    };
+		this.signalHandler = () => {
+			logger.info("Received SIGUSR1 signal, toggling recording");
+			this.handleTrigger();
+		};
 
-    this.setupListeners();
-    this.setupSignalHandlers();
-  }
+		this.setupListeners();
+		this.setupSignalHandlers();
+	}
 
-  private setupSignalHandlers() {
-    process.on("SIGUSR1", this.signalHandler);
-  }
+	private setupSignalHandlers() {
+		process.on("SIGUSR1", this.signalHandler);
+	}
 
-  private updateState() {
-    const state: DaemonState = {
-      status: this.status,
-      pid: process.pid,
-      uptime: Math.floor((Date.now() - this.startTime) / 1000),
-      lastTranscription: this.lastTranscription?.toISOString(),
-      transcriptionCountToday: this.transcriptionCountToday,
-      transcriptionCountTotal: this.transcriptionCountTotal,
-      errorCount: this.errorCount,
-      lastError: this.lastError,
-    };
-    try {
-      writeFileSync(this.stateFile, JSON.stringify(state, null, 2));
-      logger.debug({ status: this.status }, "Daemon state updated");
-    } catch (e) {
-      logError("Failed to update daemon state file", e, { stateFile: this.stateFile });
-    }
-  }
+	private updateState() {
+		const state: DaemonState = {
+			status: this.status,
+			pid: process.pid,
+			uptime: Math.floor((Date.now() - this.startTime) / 1000),
+			lastTranscription: this.lastTranscription?.toISOString(),
+			transcriptionCountToday: this.transcriptionCountToday,
+			transcriptionCountTotal: this.transcriptionCountTotal,
+			errorCount: this.errorCount,
+			lastError: this.lastError,
+		};
+		try {
+			writeFileSync(this.stateFile, JSON.stringify(state, null, 2));
+			logger.debug({ status: this.status }, "Daemon state updated");
+		} catch (e) {
+			logError("Failed to update daemon state file", e, {
+				stateFile: this.stateFile,
+			});
+		}
+	}
 
-  private setStatus(status: DaemonStatus, error?: string) {
-    const oldStatus = this.status;
-    this.status = status;
-    if (status === "starting" || status === "recording") {
-      this.lastError = undefined;
-    }
-    if (error) {
-      this.lastError = error;
-    }
-    
-    if (oldStatus !== status) {
-      logger.info({ from: oldStatus, to: status }, `Daemon status changed: ${status}`);
-    }
-    
-    this.updateState();
-  }
+	private setStatus(status: DaemonStatus, error?: string) {
+		const oldStatus = this.status;
+		this.status = status;
+		if (status === "starting" || status === "recording") {
+			this.lastError = undefined;
+		}
+		if (error) {
+			this.lastError = error;
+		}
 
-  private setupListeners() {
-    this.hotkeyListener.on("trigger", () => this.handleTrigger());
-    
-    this.recorder.on("start", () => {
-      this.setStatus("recording");
-      notify("Recording Started", "Listening...", "info");
-    });
+		if (oldStatus !== status) {
+			logger.info(
+				{ from: oldStatus, to: status },
+				`Daemon status changed: ${status}`,
+			);
+		}
 
-    this.recorder.on("stop", (audioBuffer: Buffer, duration: number) => {
-      this.setStatus("processing");
-      notify("Recording Stopped", "Processing transcription...", "info");
-      this.processAudio(audioBuffer, duration);
-    });
+		this.updateState();
+	}
 
-    this.recorder.on("warning", (msg: string) => {
-      notify("Warning", msg, "warning");
-    });
+	private setupListeners() {
+		this.hotkeyListener.on("trigger", () => this.handleTrigger());
 
-    this.recorder.on("error", (err: Error) => {
-      this.errorCount++;
-      this.setStatus("error", err.message);
-      
-      let title = "Error";
-      let message = err.message;
+		this.recorder.on("start", () => {
+			this.setStatus("recording");
+			notify("Recording Started", "Listening...", "info");
+		});
 
-      const code = (err as any).code as ErrorCode;
-      
-      if (code === "NO_MICROPHONE") {
-        title = "Microphone Error";
-        message = formatUserError(ErrorTemplates.AUDIO.NO_MICROPHONE);
-      } else if (code === "AUDIO_BACKEND_MISSING") {
-        title = "System Error";
-        message = formatUserError(ErrorTemplates.AUDIO.AUDIO_BACKEND_MISSING);
-      } else if (code === "PERMISSION_DENIED") {
-        title = "Microphone Error";
-        message = formatUserError(ErrorTemplates.AUDIO.PERMISSION_DENIED);
-      } else if (code === "DEVICE_BUSY") {
-        title = "Microphone Error";
-        message = formatUserError(ErrorTemplates.AUDIO.DEVICE_BUSY);
-      } else if (code === "RECORDING_TOO_SHORT") {
-        title = "Recording Error";
-        message = formatUserError(ErrorTemplates.AUDIO.RECORDING_TOO_SHORT);
-      } else if (code === "SILENT_AUDIO") {
-        title = "Recording Error";
-        message = formatUserError(ErrorTemplates.AUDIO.SILENT_AUDIO);
-      } else if (message.toLowerCase().includes("permission denied") || message.toLowerCase().includes("microphone")) {
-        title = "Microphone Error";
-      }
+		this.recorder.on("stop", (audioBuffer: Buffer, duration: number) => {
+			this.setStatus("processing");
+			notify("Recording Stopped", "Processing transcription...", "info");
+			this.processAudio(audioBuffer, duration);
+		});
 
-      notify(title, message, "error");
-    });
-  }
+		this.recorder.on("warning", (msg: string) => {
+			notify("Warning", msg, "warning");
+		});
 
-  public async start() {
-    try {
-      writeFileSync(this.pidFile, process.pid.toString());
-      this.updateState();
-      
-      const config = loadConfig();
-      await checkHotkeyConflict(config.behavior.hotkey);
+		this.recorder.on("error", (err: Error) => {
+			this.errorCount++;
+			this.setStatus("error", err.message);
 
-      this.hotkeyListener.start();
-      logger.info("Daemon started. Waiting for hotkey...");
-    } catch (error) {
-      logError("Failed to start daemon", error);
-      throw error;
-    }
-  }
+			let title = "Error";
+			let message = err.message;
 
-  public stop() {
-    this.hotkeyListener.stop();
-    this.recorder.stop(true);
-    process.off("SIGUSR1", this.signalHandler);
-    try {
-      unlinkSync(this.pidFile);
-      unlinkSync(this.stateFile);
-    } catch (e) {
-      
-    }
-    logger.info("Daemon stopped");
-  }
+			const code = (err as any).code as ErrorCode;
 
-  private async handleTrigger() {
-    if (this.status === "idle" || this.status === "error") {
-      try {
-        this.setStatus("starting");
-        await this.recorder.start();
-      } catch (error) {
-        this.setStatus("idle");
-      }
-    } else if (this.status === "recording") {
-      this.setStatus("stopping");
-      await this.recorder.stop();
-    } else {
-      logger.warn(`Hotkey ignored in state: ${this.status}`);
-    }
-  }
+			if (code === "NO_MICROPHONE") {
+				title = "Microphone Error";
+				message = formatUserError(ErrorTemplates.AUDIO.NO_MICROPHONE);
+			} else if (code === "AUDIO_BACKEND_MISSING") {
+				title = "System Error";
+				message = formatUserError(ErrorTemplates.AUDIO.AUDIO_BACKEND_MISSING);
+			} else if (code === "PERMISSION_DENIED") {
+				title = "Microphone Error";
+				message = formatUserError(ErrorTemplates.AUDIO.PERMISSION_DENIED);
+			} else if (code === "DEVICE_BUSY") {
+				title = "Microphone Error";
+				message = formatUserError(ErrorTemplates.AUDIO.DEVICE_BUSY);
+			} else if (code === "RECORDING_TOO_SHORT") {
+				title = "Recording Error";
+				message = formatUserError(ErrorTemplates.AUDIO.RECORDING_TOO_SHORT);
+			} else if (code === "SILENT_AUDIO") {
+				title = "Recording Error";
+				message = formatUserError(ErrorTemplates.AUDIO.SILENT_AUDIO);
+			} else if (
+				message.toLowerCase().includes("permission denied") ||
+				message.toLowerCase().includes("microphone")
+			) {
+				title = "Microphone Error";
+			}
 
-  private async processAudio(audioBuffer: Buffer, duration: number) {
-    try {
-      const config = loadConfig();
-      const language = config.transcription.language;
-      const boostWords = config.transcription.boostWords || [];
+			notify(title, message, "error");
+		});
+	}
 
-      // Convert audio to optimal format (16kHz WAV Mono)
-      const convertedBuffer = await convertAudio(audioBuffer);
+	public async start() {
+		try {
+			writeFileSync(this.pidFile, process.pid.toString());
+			this.updateState();
 
-      let groqErr: any = null;
-      let deepgramErr: any = null;
-      const startTime = Date.now();
+			const config = loadConfig();
+			await checkHotkeyConflict(config.behavior.hotkey);
 
-      const [groqText, deepgramText] = await Promise.all([
-        this.groq.transcribe(convertedBuffer, language, boostWords).catch((err) => {
-          groqErr = err;
-          return "";
-        }),
-        this.deepgram.transcribe(convertedBuffer, language, boostWords).catch((err) => {
-          deepgramErr = err;
-          return "";
-        }),
-      ]);
+			this.hotkeyListener.start();
+			logger.info("Daemon started. Waiting for hotkey...");
+		} catch (error) {
+			logError("Failed to start daemon", error);
+			throw error;
+		}
+	}
 
-      const processingTime = Date.now() - startTime;
+	public stop() {
+		this.hotkeyListener.stop();
+		this.recorder.stop(true);
+		process.off("SIGUSR1", this.signalHandler);
+		try {
+			unlinkSync(this.pidFile);
+			unlinkSync(this.stateFile);
+		} catch (_e) {}
+		logger.info("Daemon stopped");
+	}
 
-      const handleTranscriptionError = (err: any, failedService: string) => {
-        const code = err instanceof AppError ? err.code : undefined;
+	private async handleTrigger() {
+		if (this.status === "idle" || this.status === "error") {
+			try {
+				this.setStatus("starting");
+				await this.recorder.start();
+			} catch (_error) {
+				this.setStatus("idle");
+			}
+		} else if (this.status === "recording") {
+			this.setStatus("stopping");
+			await this.recorder.stop();
+		} else {
+			logger.warn(`Hotkey ignored in state: ${this.status}`);
+		}
+	}
 
-        if (code === "GROQ_INVALID_KEY" || code === "DEEPGRAM_INVALID_KEY" || err?.message?.includes("Invalid API Key")) {
-          const template = failedService === "Groq" ? ErrorTemplates.API.GROQ_INVALID_KEY : ErrorTemplates.API.DEEPGRAM_INVALID_KEY;
-          notify("Configuration Error", formatUserError(template), "error");
-        } else if (code === "RATE_LIMIT_EXCEEDED" || err?.message?.includes("Rate limit exceeded")) {
-          const template = ErrorTemplates.API.RATE_LIMIT_EXCEEDED(failedService);
-          notify("Rate Limit", formatUserError(template), "error");
-        } else if (code === "TIMEOUT" || err?.message?.includes("timed out")) {
-          logger.warn(`${failedService} API timed out`);
-        } else {
-          logError(`${failedService} failed`, err);
-        }
-      };
+	private async processAudio(audioBuffer: Buffer, duration: number) {
+		try {
+			const config = loadConfig();
+			const language = config.transcription.language;
+			const boostWords = config.transcription.boostWords || [];
 
-      if (!groqText && !deepgramText) {
-        if (groqErr) handleTranscriptionError(groqErr, "Groq");
-        if (deepgramErr) handleTranscriptionError(deepgramErr, "Deepgram");
+			// Convert audio to optimal format (16kHz WAV Mono)
+			const convertedBuffer = await convertAudio(audioBuffer);
 
-        const template = ErrorTemplates.API.BOTH_SERVICES_FAILED;
-        notify("Transcription Failed", formatUserError(template), "error");
-        
-        throw new Error("Both transcription services failed");
-      }
+			let groqErr: any = null;
+			let deepgramErr: any = null;
+			const startTime = Date.now();
 
-      let finalText = "";
-      if (groqText && deepgramText) {
-        finalText = await this.merger.merge(groqText, deepgramText);
-      } else {
-        finalText = groqText || deepgramText;
-        
-        const failedService = !groqText ? "Groq" : "Deepgram";
-        const error = !groqText ? groqErr : deepgramErr;
-        
-        if (error) {
-          handleTranscriptionError(error, failedService);
-        }
-        
-        notify("Warning", `${failedService} failed, using fallback`, "warning");
-      }
+			const [groqText, deepgramText] = await Promise.all([
+				this.groq
+					.transcribe(convertedBuffer, language, boostWords)
+					.catch((err) => {
+						groqErr = err;
+						return "";
+					}),
+				this.deepgram
+					.transcribe(convertedBuffer, language, boostWords)
+					.catch((err) => {
+						deepgramErr = err;
+						return "";
+					}),
+			]);
 
-      if (!finalText) {
-        throw new Error("No transcription generated");
-      }
+			const processingTime = Date.now() - startTime;
 
-      await this.clipboard.append(finalText);
-      
-      const stats = incrementTranscriptionCount();
-      this.transcriptionCountToday = stats.today;
-      this.transcriptionCountTotal = stats.total;
+			const handleTranscriptionError = (err: any, failedService: string) => {
+				const code = err instanceof AppError ? err.code : undefined;
 
-      const engineUsed = groqText && deepgramText ? "groq+deepgram" : (groqText ? "groq" : "deepgram");
-      appendHistory({
-        timestamp: new Date().toISOString(),
-        text: finalText,
-        duration,
-        engine: engineUsed,
-        processingTime
-      });
+				if (
+					code === "GROQ_INVALID_KEY" ||
+					code === "DEEPGRAM_INVALID_KEY" ||
+					err?.message?.includes("Invalid API Key")
+				) {
+					const template =
+						failedService === "Groq"
+							? ErrorTemplates.API.GROQ_INVALID_KEY
+							: ErrorTemplates.API.DEEPGRAM_INVALID_KEY;
+					notify("Configuration Error", formatUserError(template), "error");
+				} else if (
+					code === "RATE_LIMIT_EXCEEDED" ||
+					err?.message?.includes("Rate limit exceeded")
+				) {
+					const template =
+						ErrorTemplates.API.RATE_LIMIT_EXCEEDED(failedService);
+					notify("Rate Limit", formatUserError(template), "error");
+				} else if (code === "TIMEOUT" || err?.message?.includes("timed out")) {
+					logger.warn(`${failedService} API timed out`);
+				} else {
+					logError(`${failedService} failed`, err);
+				}
+			};
 
-      notify("Success", "Transcription copied to clipboard", "success");
-      
-      logger.info({ 
-        duration, 
-        processingTime,
-        text: finalText,
-        textLength: finalText.length,
-        groqText,
-        groqTextLength: groqText.length,
-        deepgramText,
-        deepgramTextLength: deepgramText.length,
-        models: groqText && deepgramText ? "groq+deepgram+llama" : (groqText ? "groq" : "deepgram")
-      }, "Transcription complete");
+			if (!groqText && !deepgramText) {
+				if (groqErr) handleTranscriptionError(groqErr, "Groq");
+				if (deepgramErr) handleTranscriptionError(deepgramErr, "Deepgram");
 
-    } catch (error: any) {
-      logError("Processing failed", error, { duration });
-      
-      let message = "Transcription failed. Check logs.";
-      const code = error instanceof AppError ? error.code : undefined;
+				const template = ErrorTemplates.API.BOTH_SERVICES_FAILED;
+				notify("Transcription Failed", formatUserError(template), "error");
 
-      if (code === "ACCESS_DENIED" || error instanceof ClipboardAccessError) {
-        message = formatUserError(ErrorTemplates.CLIPBOARD.ACCESS_DENIED);
-      } else if (code === "APPEND_FAILED") {
-        message = formatUserError(ErrorTemplates.CLIPBOARD.APPEND_FAILED);
-      } else if (code === "TIMEOUT" || error?.message?.includes("timed out")) {
-        message = formatUserError(ErrorTemplates.API.TIMEOUT("Both"));
-      } else if (code === "BOTH_SERVICES_FAILED") {
-        message = formatUserError(ErrorTemplates.API.BOTH_SERVICES_FAILED);
-      } else if (code === "CONVERSION_FAILED" || code === "FFMPEG_FAILURE") {
-        const template = code === "FFMPEG_FAILURE" ? ErrorTemplates.AUDIO.FFMPEG_FAILURE : ErrorTemplates.AUDIO.CONVERSION_FAILED;
-        message = formatUserError(template);
-      }
-      
-      this.errorCount++;
-      this.setStatus("error", message);
-      notify("Error", message, "error");
-    } finally {
-      this.lastTranscription = new Date();
-      if (this.status !== "error") {
-        this.setStatus("idle");
-      }
-    }
-  }
+				throw new Error("Both transcription services failed");
+			}
+
+			let finalText = "";
+			if (groqText && deepgramText) {
+				finalText = await this.merger.merge(groqText, deepgramText);
+			} else {
+				finalText = groqText || deepgramText;
+
+				const failedService = !groqText ? "Groq" : "Deepgram";
+				const error = !groqText ? groqErr : deepgramErr;
+
+				if (error) {
+					handleTranscriptionError(error, failedService);
+				}
+
+				notify("Warning", `${failedService} failed, using fallback`, "warning");
+			}
+
+			if (!finalText) {
+				throw new Error("No transcription generated");
+			}
+
+			await this.clipboard.append(finalText);
+
+			const stats = incrementTranscriptionCount();
+			this.transcriptionCountToday = stats.today;
+			this.transcriptionCountTotal = stats.total;
+
+			const engineUsed =
+				groqText && deepgramText
+					? "groq+deepgram"
+					: groqText
+						? "groq"
+						: "deepgram";
+			appendHistory({
+				timestamp: new Date().toISOString(),
+				text: finalText,
+				duration,
+				engine: engineUsed,
+				processingTime,
+			});
+
+			notify("Success", "Transcription copied to clipboard", "success");
+
+			logger.info(
+				{
+					duration,
+					processingTime,
+					text: finalText,
+					textLength: finalText.length,
+					groqText,
+					groqTextLength: groqText.length,
+					deepgramText,
+					deepgramTextLength: deepgramText.length,
+					models:
+						groqText && deepgramText
+							? "groq+deepgram+llama"
+							: groqText
+								? "groq"
+								: "deepgram",
+				},
+				"Transcription complete",
+			);
+		} catch (error: any) {
+			logError("Processing failed", error, { duration });
+
+			let message = "Transcription failed. Check logs.";
+			const code = error instanceof AppError ? error.code : undefined;
+
+			if (code === "ACCESS_DENIED" || error instanceof ClipboardAccessError) {
+				message = formatUserError(ErrorTemplates.CLIPBOARD.ACCESS_DENIED);
+			} else if (code === "APPEND_FAILED") {
+				message = formatUserError(ErrorTemplates.CLIPBOARD.APPEND_FAILED);
+			} else if (code === "TIMEOUT" || error?.message?.includes("timed out")) {
+				message = formatUserError(ErrorTemplates.API.TIMEOUT("Both"));
+			} else if (code === "BOTH_SERVICES_FAILED") {
+				message = formatUserError(ErrorTemplates.API.BOTH_SERVICES_FAILED);
+			} else if (code === "CONVERSION_FAILED" || code === "FFMPEG_FAILURE") {
+				const template =
+					code === "FFMPEG_FAILURE"
+						? ErrorTemplates.AUDIO.FFMPEG_FAILURE
+						: ErrorTemplates.AUDIO.CONVERSION_FAILED;
+				message = formatUserError(template);
+			}
+
+			this.errorCount++;
+			this.setStatus("error", message);
+			notify("Error", message, "error");
+		} finally {
+			this.lastTranscription = new Date();
+			if (this.status !== "error") {
+				this.setStatus("idle");
+			}
+		}
+	}
 }

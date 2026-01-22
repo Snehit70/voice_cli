@@ -1,32 +1,32 @@
 {
-  "apiKeys": {
-    "groq": "gsk_enter_your_groq_api_key_here",
-    "deepgram": "00000000-0000-0000-0000-000000000000"
-  },
-  "behavior": {
-    "hotkey": "Right Control",
-    "toggleMode": true,
-    "notifications": true,
-    "clipboard": {
-      "append": true,
-      "minDuration": 0.6,
-      "maxDuration": 300
-    },
-    "audioDevice": "default"
-  },
-  "paths": {
-    "logs": "~/.config/voice-cli/logs/",
-    "history": "~/.config/voice-cli/history.json"
-  },
-  "transcription": {
-    "language": "en",
-    "boostWords": [
-      "voice-cli",
-      "Sisyphus",
-      "Groq",
-      "Deepgram",
-      "Wayland",
-      "Hyprland"
-    ]
-  }
+	"apiKeys": {
+		"groq": "gsk_enter_your_groq_api_key_here",
+		"deepgram": "00000000-0000-0000-0000-000000000000"
+	},
+	"behavior": {
+		"hotkey": "Right Control",
+		"toggleMode": true,
+		"notifications": true,
+		"clipboard": {
+			"append": true,
+			"minDuration": 0.6,
+			"maxDuration": 300
+		},
+		"audioDevice": "default"
+	},
+	"paths": {
+		"logs": "~/.config/voice-cli/logs/",
+		"history": "~/.config/voice-cli/history.json"
+	},
+	"transcription": {
+		"language": "en",
+		"boostWords": [
+			"voice-cli",
+			"Sisyphus",
+			"Groq",
+			"Deepgram",
+			"Wayland",
+			"Hyprland"
+		]
+	}
 }

@@ -1,70 +1,74 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface TranscriptionStats {
-  today: number;
-  total: number;
-  lastDate: string;
+	today: number;
+	total: number;
+	lastDate: string;
 }
 
 const STATS_FILE = join(homedir(), ".config", "voice-cli", "stats.json");
 
 export function loadStats(): TranscriptionStats {
-  const todayDate = new Date().toISOString().split("T")[0] || new Date().toLocaleDateString("en-CA");
-  
-  if (!existsSync(STATS_FILE)) {
-    return {
-      today: 0,
-      total: 0,
-      lastDate: todayDate,
-    };
-  }
+	const todayDate =
+		new Date().toISOString().split("T")[0] ||
+		new Date().toLocaleDateString("en-CA");
 
-  try {
-    const data = JSON.parse(readFileSync(STATS_FILE, "utf-8")) as Partial<TranscriptionStats>;
-    const total = typeof data.total === "number" ? data.total : 0;
-    const today = typeof data.today === "number" ? data.today : 0;
-    const lastDate = typeof data.lastDate === "string" ? data.lastDate : todayDate;
-    
-    if (lastDate !== todayDate) {
-      return {
-        today: 0,
-        total,
-        lastDate: todayDate,
-      };
-    }
+	if (!existsSync(STATS_FILE)) {
+		return {
+			today: 0,
+			total: 0,
+			lastDate: todayDate,
+		};
+	}
 
-    return {
-      today,
-      total,
-      lastDate,
-    };
-  } catch (e) {
-    return {
-      today: 0,
-      total: 0,
-      lastDate: todayDate,
-    };
-  }
+	try {
+		const data = JSON.parse(
+			readFileSync(STATS_FILE, "utf-8"),
+		) as Partial<TranscriptionStats>;
+		const total = typeof data.total === "number" ? data.total : 0;
+		const today = typeof data.today === "number" ? data.today : 0;
+		const lastDate =
+			typeof data.lastDate === "string" ? data.lastDate : todayDate;
+
+		if (lastDate !== todayDate) {
+			return {
+				today: 0,
+				total,
+				lastDate: todayDate,
+			};
+		}
+
+		return {
+			today,
+			total,
+			lastDate,
+		};
+	} catch (_e) {
+		return {
+			today: 0,
+			total: 0,
+			lastDate: todayDate,
+		};
+	}
 }
 
 export function saveStats(stats: TranscriptionStats): void {
-  const dir = join(homedir(), ".config", "voice-cli");
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+	const dir = join(homedir(), ".config", "voice-cli");
+	if (!existsSync(dir)) {
+		mkdirSync(dir, { recursive: true });
+	}
 
-  try {
-    writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), { mode: 0o600 });
-  } catch (e) {
-  }
+	try {
+		writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), { mode: 0o600 });
+	} catch (_e) {}
 }
 
 export function incrementTranscriptionCount(): TranscriptionStats {
-  const stats = loadStats();
-  stats.today += 1;
-  stats.total += 1;
-  saveStats(stats);
-  return stats;
+	const stats = loadStats();
+	stats.today += 1;
+	stats.total += 1;
+	saveStats(stats);
+	return stats;
 }

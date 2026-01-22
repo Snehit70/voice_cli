@@ -1,167 +1,180 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { spawn, execSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { execSync, spawn } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("Daemon Lifecycle Integration", () => {
-  const testHome = join(tmpdir(), `voice-cli-test-home-${Date.now()}`);
-  const configDir = join(testHome, ".config", "voice-cli");
-  const pidFile = join(configDir, "daemon.pid");
-  const configFile = join(configDir, "config.json");
+	const testHome = join(tmpdir(), `voice-cli-test-home-${Date.now()}`);
+	const configDir = join(testHome, ".config", "voice-cli");
+	const pidFile = join(configDir, "daemon.pid");
+	const configFile = join(configDir, "config.json");
 
-  beforeEach(() => {
-    if (existsSync(testHome)) {
-      rmSync(testHome, { recursive: true, force: true });
-    }
-    mkdirSync(configDir, { recursive: true });
-    
-    const testConfig = {
-      apiKeys: {
-        groq: "gsk_test_12345678901234567890",
-        deepgram: "00000000-0000-0000-0000-000000000000"
-      },
-      behavior: {
-        hotkey: "RIGHT CONTROL",
-        audioDevice: "default",
-        clipboard: { append: true, minDuration: 0.6, maxDuration: 300 }
-      },
-      paths: {
-        logs: "~/.config/voice-cli/logs",
-        history: "~/.config/voice-cli/history.json"
-      },
-      transcription: {
-        language: "en",
-        boostWords: []
-      }
-    };
-    writeFileSync(configFile, JSON.stringify(testConfig), { mode: 0o600 });
-  });
+	beforeEach(() => {
+		if (existsSync(testHome)) {
+			rmSync(testHome, { recursive: true, force: true });
+		}
+		mkdirSync(configDir, { recursive: true });
 
-  afterEach(() => {
-    try {
-      execSync(`HOME=${testHome} bun run index.ts stop`, {
-        env: { ...process.env, HOME: testHome },
-        stdio: "ignore"
-      });
-    } catch (e) {}
+		const testConfig = {
+			apiKeys: {
+				groq: "gsk_test_12345678901234567890",
+				deepgram: "00000000-0000-0000-0000-000000000000",
+			},
+			behavior: {
+				hotkey: "RIGHT CONTROL",
+				audioDevice: "default",
+				clipboard: { append: true, minDuration: 0.6, maxDuration: 300 },
+			},
+			paths: {
+				logs: "~/.config/voice-cli/logs",
+				history: "~/.config/voice-cli/history.json",
+			},
+			transcription: {
+				language: "en",
+				boostWords: [],
+			},
+		};
+		writeFileSync(configFile, JSON.stringify(testConfig), { mode: 0o600 });
+	});
 
-    if (existsSync(pidFile)) {
-      try {
-        const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-        process.kill(pid, "SIGKILL");
-      } catch (e) {}
-    }
+	afterEach(() => {
+		try {
+			execSync(`HOME=${testHome} bun run index.ts stop`, {
+				env: { ...process.env, HOME: testHome },
+				stdio: "ignore",
+			});
+		} catch (_e) {}
 
-    rmSync(testHome, { recursive: true, force: true });
-  });
+		if (existsSync(pidFile)) {
+			try {
+				const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+				process.kill(pid, "SIGKILL");
+			} catch (_e) {}
+		}
 
-  const runCLI = (args: string[]) => {
-    return execSync(`HOME=${testHome} bun run index.ts ${args.join(" ")}`, {
-      encoding: "utf-8",
-      env: { ...process.env, HOME: testHome }
-    });
-  };
+		rmSync(testHome, { recursive: true, force: true });
+	});
 
-  it("should start directly, report status, and stop the daemon", async () => {
-    const daemonProcess = spawn("bun", ["run", "index.ts", "start", "--no-supervisor"], {
-      env: { ...process.env, HOME: testHome },
-      stdio: "pipe"
-    });
+	const runCLI = (args: string[]) => {
+		return execSync(`HOME=${testHome} bun run index.ts ${args.join(" ")}`, {
+			encoding: "utf-8",
+			env: { ...process.env, HOME: testHome },
+		});
+	};
 
-    let attempts = 0;
-    while (!existsSync(pidFile) && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
+	it("should start directly, report status, and stop the daemon", async () => {
+		const daemonProcess = spawn(
+			"bun",
+			["run", "index.ts", "start", "--no-supervisor"],
+			{
+				env: { ...process.env, HOME: testHome },
+				stdio: "pipe",
+			},
+		);
 
-    expect(existsSync(pidFile), "PID file should exist after start").toBe(true);
-    const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-    expect(pid).toBeGreaterThan(0);
+		let attempts = 0;
+		while (!existsSync(pidFile) && attempts < 20) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			attempts++;
+		}
 
-    const statusOutput = runCLI(["status"]);
-    expect(statusOutput).toContain("Running");
-    expect(statusOutput).toContain(`PID: ${pid}`);
+		expect(existsSync(pidFile), "PID file should exist after start").toBe(true);
+		const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+		expect(pid).toBeGreaterThan(0);
 
-    runCLI(["stop"]);
-    
-    attempts = 0;
-    while (existsSync(pidFile) && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
+		const statusOutput = runCLI(["status"]);
+		expect(statusOutput).toContain("Running");
+		expect(statusOutput).toContain(`PID: ${pid}`);
 
-    expect(existsSync(pidFile), "PID file should be removed after stop").toBe(false);
+		runCLI(["stop"]);
 
-    const statusOutputStopped = runCLI(["status"]);
-    expect(statusOutputStopped).toContain("Stopped");
-    
-    daemonProcess.kill("SIGKILL");
-  }, 15000);
+		attempts = 0;
+		while (existsSync(pidFile) && attempts < 20) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			attempts++;
+		}
 
-  it("should restart the daemon", async () => {
+		expect(existsSync(pidFile), "PID file should be removed after stop").toBe(
+			false,
+		);
 
+		const statusOutputStopped = runCLI(["status"]);
+		expect(statusOutputStopped).toContain("Stopped");
 
-    const initialDaemon = spawn("bun", ["run", "index.ts", "start", "--no-supervisor"], {
-      env: { ...process.env, HOME: testHome },
-      stdio: "ignore"
-    });
+		daemonProcess.kill("SIGKILL");
+	}, 15000);
 
-    let attempts = 0;
-    while (!existsSync(pidFile) && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
-    
-    expect(existsSync(pidFile)).toBe(true);
-    const initialPid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+	it("should restart the daemon", async () => {
+		const initialDaemon = spawn(
+			"bun",
+			["run", "index.ts", "start", "--no-supervisor"],
+			{
+				env: { ...process.env, HOME: testHome },
+				stdio: "ignore",
+			},
+		);
 
-    const restartProcess = spawn("bun", ["run", "index.ts", "restart"], {
-      env: { ...process.env, HOME: testHome },
-      stdio: "ignore"
-    });
-    
-    attempts = 0;
-    let disappeared = false;
-    while (attempts < 20) {
-      if (!existsSync(pidFile)) {
-        disappeared = true;
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
+		let attempts = 0;
+		while (!existsSync(pidFile) && attempts < 20) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			attempts++;
+		}
 
-    expect(disappeared, "PID file should have disappeared during restart").toBe(true);
+		expect(existsSync(pidFile)).toBe(true);
+		const initialPid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
 
-    attempts = 0;
-    let newPid = 0;
-    while (attempts < 60) {
-      if (existsSync(pidFile)) {
-        try {
-          const content = readFileSync(pidFile, "utf-8").trim();
-          newPid = parseInt(content, 10);
-          if (newPid !== initialPid) break;
-        } catch (e) {}
-      }
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
+		const restartProcess = spawn("bun", ["run", "index.ts", "restart"], {
+			env: { ...process.env, HOME: testHome },
+			stdio: "ignore",
+		});
 
+		attempts = 0;
+		let disappeared = false;
+		while (attempts < 20) {
+			if (!existsSync(pidFile)) {
+				disappeared = true;
+				break;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			attempts++;
+		}
 
+		expect(disappeared, "PID file should have disappeared during restart").toBe(
+			true,
+		);
 
-    expect(newPid, "New PID should be different from initial").not.toBe(initialPid);
-    expect(newPid, "New PID should be valid").toBeGreaterThan(0);
+		attempts = 0;
+		let newPid = 0;
+		while (attempts < 60) {
+			if (existsSync(pidFile)) {
+				try {
+					const content = readFileSync(pidFile, "utf-8").trim();
+					newPid = parseInt(content, 10);
+					if (newPid !== initialPid) break;
+				} catch (_e) {}
+			}
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			attempts++;
+		}
 
+		expect(newPid, "New PID should be different from initial").not.toBe(
+			initialPid,
+		);
+		expect(newPid, "New PID should be valid").toBeGreaterThan(0);
 
-    const statusOutput = runCLI(["status"]);
-    expect(statusOutput).toContain("Running");
-    
-    runCLI(["stop"]);
-    
-    initialDaemon.kill("SIGKILL");
-    restartProcess.kill("SIGKILL");
-  }, 40000);
+		const statusOutput = runCLI(["status"]);
+		expect(statusOutput).toContain("Running");
 
+		runCLI(["stop"]);
 
+		initialDaemon.kill("SIGKILL");
+		restartProcess.kill("SIGKILL");
+	}, 40000);
 });

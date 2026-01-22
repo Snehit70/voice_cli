@@ -1,88 +1,96 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { logger } from "../utils/logger";
+import { join } from "node:path";
 import { notify } from "../output/notification";
+import { logger } from "../utils/logger";
 
 export class DaemonSupervisor {
-  private restartCount = 0;
-  private firstRestartTime = 0;
-  private readonly MAX_RESTARTS = 3;
-  private readonly WINDOW_MS = 5 * 60 * 1000;
-  private isStopping = false;
+	private restartCount = 0;
+	private firstRestartTime = 0;
+	private readonly MAX_RESTARTS = 3;
+	private readonly WINDOW_MS = 5 * 60 * 1000;
+	private isStopping = false;
 
-  constructor(private scriptPath: string) {}
+	constructor(private scriptPath: string) {}
 
-  public start() {
-    this.spawnDaemon();
-  }
+	public start() {
+		this.spawnDaemon();
+	}
 
-  public stop() {
-    this.isStopping = true;
-  }
+	public stop() {
+		this.isStopping = true;
+	}
 
-  private spawnDaemon() {
-    if (this.isStopping) return;
+	private spawnDaemon() {
+		if (this.isStopping) return;
 
-    logger.info("Supervisor: Spawning daemon process...");
-    
-    const child = spawn("bun", ["run", this.scriptPath, "start", "--daemon-worker"], {
-      stdio: "inherit",
-      env: { ...process.env, VOICE_CLI_DAEMON_WORKER: "true" }
-    });
+		logger.info("Supervisor: Spawning daemon process...");
 
-    child.on("exit", (code, signal) => {
-      if (this.isStopping || code === 0) {
-        logger.info(`Supervisor: Daemon exited cleanly (code: ${code}, signal: ${signal})`);
-        return;
-      }
+		const child = spawn(
+			"bun",
+			["run", this.scriptPath, "start", "--daemon-worker"],
+			{
+				stdio: "inherit",
+				env: { ...process.env, VOICE_CLI_DAEMON_WORKER: "true" },
+			},
+		);
 
-      logger.error(`Supervisor: Daemon crashed (code: ${code}, signal: ${signal})`);
-      this.handleCrash();
-    });
-  }
+		child.on("exit", (code, signal) => {
+			if (this.isStopping || code === 0) {
+				logger.info(
+					`Supervisor: Daemon exited cleanly (code: ${code}, signal: ${signal})`,
+				);
+				return;
+			}
 
-  private handleCrash() {
-    const now = Date.now();
-    
-    if (now - this.firstRestartTime > this.WINDOW_MS) {
-      this.restartCount = 1;
-      this.firstRestartTime = now;
-    } else {
-      this.restartCount++;
-    }
+			logger.error(
+				`Supervisor: Daemon crashed (code: ${code}, signal: ${signal})`,
+			);
+			this.handleCrash();
+		});
+	}
 
-    if (this.restartCount > this.MAX_RESTARTS) {
-      const msg = `Daemon crashed ${this.MAX_RESTARTS} times in 5 minutes. Stopping.`;
-      logger.error(msg);
+	private handleCrash() {
+		const now = Date.now();
 
-      const configDir = join(homedir(), ".config", "voice-cli");
-      const stateFile = join(configDir, "daemon.state");
-      const pidFile = join(configDir, "daemon.pid");
+		if (now - this.firstRestartTime > this.WINDOW_MS) {
+			this.restartCount = 1;
+			this.firstRestartTime = now;
+		} else {
+			this.restartCount++;
+		}
 
-      if (existsSync(stateFile)) {
-        try {
-          const state = JSON.parse(readFileSync(stateFile, "utf-8"));
-          state.status = "error";
-          state.lastError = msg;
-          writeFileSync(stateFile, JSON.stringify(state, null, 2));
-        } catch (e) {
-        }
-      }
+		if (this.restartCount > this.MAX_RESTARTS) {
+			const msg = `Daemon crashed ${this.MAX_RESTARTS} times in 5 minutes. Stopping.`;
+			logger.error(msg);
 
-      if (existsSync(pidFile)) {
-        try {
-          unlinkSync(pidFile);
-        } catch (e) {
-        }
-      }
+			const configDir = join(homedir(), ".config", "voice-cli");
+			const stateFile = join(configDir, "daemon.state");
+			const pidFile = join(configDir, "daemon.pid");
 
-      notify("Daemon Critical Failure", msg, "error");
-      process.exit(1);
-    }
+			if (existsSync(stateFile)) {
+				try {
+					const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+					state.status = "error";
+					state.lastError = msg;
+					writeFileSync(stateFile, JSON.stringify(state, null, 2));
+				} catch (_e) {}
+			}
 
-    logger.warn(`Supervisor: Restarting daemon (${this.restartCount}/${this.MAX_RESTARTS})...`);
-    setTimeout(() => this.spawnDaemon(), 1000);
-  }
+			if (existsSync(pidFile)) {
+				try {
+					unlinkSync(pidFile);
+				} catch (_e) {}
+			}
+
+			notify("Daemon Critical Failure", msg, "error");
+			process.exit(1);
+		}
+
+		logger.warn(
+			`Supervisor: Restarting daemon (${this.restartCount}/${this.MAX_RESTARTS})...`,
+		);
+		setTimeout(() => this.spawnDaemon(), 1000);
+	}
 }
