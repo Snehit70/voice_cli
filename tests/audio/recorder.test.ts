@@ -1,18 +1,32 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
-import { AudioRecorder } from '../../src/audio/recorder';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
-import { record } from 'node-record-lpcm16';
 
-mock.module('../../src/utils/logger', () => ({
+const mocks = vi.hoisted(() => {
+  const { EventEmitter } = require("node:events");
+  const mockStream = new EventEmitter();
+  const mockStop = vi.fn();
+  const mockRecord = vi.fn(() => ({
+    stream: () => mockStream,
+    stop: mockStop,
+  }));
+
+  return {
+    mockStream,
+    mockStop,
+    mockRecord
+  };
+});
+
+vi.mock('../../src/utils/logger', () => ({
   logger: {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
-  logError: () => {},
+  logError: vi.fn(),
 }));
 
-mock.module('../../src/config/loader', () => ({
+vi.mock('../../src/config/loader', () => ({
   loadConfig: () => ({
     behavior: {
       audioDevice: 'default'
@@ -20,34 +34,24 @@ mock.module('../../src/config/loader', () => ({
   })
 }));
 
-const mockStream = new EventEmitter();
-const mockStop = mock(() => {});
+vi.mock('node-record-lpcm16', () => ({
+  record: mocks.mockRecord
+}));
 
-mock.module('node-record-lpcm16', () => {
-  return {
-    record: mock(() => {
-        return {
-            stream: () => mockStream,
-            stop: mockStop,
-        };
-    }),
-  };
-});
+import { AudioRecorder } from '../../src/audio/recorder';
+import { record } from 'node-record-lpcm16';
 
 describe('AudioRecorder', () => {
   let recorder: AudioRecorder;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     recorder = new AudioRecorder();
-    mockStop.mockClear();
-    // @ts-ignore
-    record.mockClear();
-    mockStream.removeAllListeners();
+    mocks.mockStream.removeAllListeners();
   });
 
   it('should start recording successfully', async () => {
     await recorder.start();
-    // @ts-ignore
     expect(record).toHaveBeenCalled();
     expect(recorder.isRecording()).toBe(true);
   });
@@ -67,8 +71,8 @@ describe('AudioRecorder', () => {
   it('should stop recording and return audio buffer', async () => {
     await recorder.start();
     
-    mockStream.emit('data', Buffer.from('chunk1'));
-    mockStream.emit('data', Buffer.from('chunk2'));
+    mocks.mockStream.emit('data', Buffer.from('chunk1'));
+    mocks.mockStream.emit('data', Buffer.from('chunk2'));
 
     const realDateNow = Date.now;
     const startTime = realDateNow();
@@ -78,7 +82,7 @@ describe('AudioRecorder', () => {
     
     Date.now = realDateNow;
 
-    expect(mockStop).toHaveBeenCalled();
+    expect(mocks.mockStop).toHaveBeenCalled();
     expect(recorder.isRecording()).toBe(false);
     expect(buffer).not.toBeNull();
     expect(buffer?.toString()).toBe('chunk1chunk2');
@@ -104,7 +108,7 @@ describe('AudioRecorder', () => {
     await recorder.start();
     
     const silentBuffer = Buffer.alloc(1000); 
-    mockStream.emit('data', silentBuffer);
+    mocks.mockStream.emit('data', silentBuffer);
     
     const realDateNow = Date.now;
     const startTime = realDateNow();

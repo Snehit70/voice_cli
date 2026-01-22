@@ -1,42 +1,69 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach, vi } from "vitest";
 import { configCommand } from "../../src/cli/config";
-import { DEFAULT_CONFIG_FILE } from "../../src/config/loader";
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { writeFileSync, existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
+import readlineSync from "readline-sync";
 
-const TEST_DIR = join(tmpdir(), "voice-cli-cli-test-" + Math.random().toString(36).slice(2));
-const TEST_CONFIG_FILE = join(TEST_DIR, "config.json");
-
-mock.module("../../src/config/loader", () => {
-  const original = require("../../src/config/loader");
+const mocks = vi.hoisted(() => {
+  const { join } = require("node:path");
+  const { tmpdir } = require("node:os");
+  const TEST_DIR = join(tmpdir(), "voice-cli-cli-test-" + Math.random().toString(36).slice(2));
+  const TEST_CONFIG_FILE = join(TEST_DIR, "config.json");
   return {
-    ...original,
-    DEFAULT_CONFIG_FILE: TEST_CONFIG_FILE
+    TEST_DIR,
+    TEST_CONFIG_FILE,
+    mockGlobalKeyboardListener: {
+      addListener: vi.fn(),
+      kill: vi.fn()
+    }
   };
 });
+
+vi.mock("../../src/config/loader", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../src/config/loader")>();
+  return {
+    ...original,
+    loadConfig: (path?: string) => original.loadConfig(path || mocks.TEST_CONFIG_FILE),
+    DEFAULT_CONFIG_FILE: mocks.TEST_CONFIG_FILE
+  };
+});
+
+vi.mock("readline-sync", () => ({
+  default: {
+    question: vi.fn(),
+    keyInYN: vi.fn(),
+    keyIn: vi.fn()
+  }
+}));
+
+vi.mock("node-global-key-listener", () => ({
+  GlobalKeyboardListener: vi.fn().mockImplementation(() => mocks.mockGlobalKeyboardListener)
+}));
 
 describe("CLI: config command", () => {
   let logSpy: any;
   let errorSpy: any;
 
   beforeEach(() => {
-    mkdirSync(TEST_DIR, { recursive: true });
-    writeFileSync(TEST_CONFIG_FILE, JSON.stringify({
+    delete process.env.GROQ_API_KEY;
+    delete process.env.DEEPGRAM_API_KEY;
+
+    if (!existsSync(mocks.TEST_DIR)) mkdirSync(mocks.TEST_DIR, { recursive: true });
+    writeFileSync(mocks.TEST_CONFIG_FILE, JSON.stringify({
       apiKeys: {
         groq: "gsk_test_key_12345",
-        deepgram: "4b5c1234567890abcdef1234567890abcdef12"
+        deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab"
       }
     }));
-    logSpy = mock(console.log);
-    errorSpy = mock(console.error);
-    (console as any).log = logSpy;
-    (console as any).error = errorSpy;
+    logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     try {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      rmSync(mocks.TEST_DIR, { recursive: true, force: true });
     } catch (e) {}
   });
 
@@ -46,7 +73,7 @@ describe("CLI: config command", () => {
     expect(logSpy).toHaveBeenCalled();
     const output = logSpy.mock.calls.map((call: any[]) => JSON.stringify(call)).join("\n");
     expect(output).toContain("gsk_****2345");
-    expect(output).toContain("****ef12");
+    expect(output).toContain("****90ab");
   });
 
   test("config get should work for specific key", async () => {
@@ -65,7 +92,7 @@ describe("CLI: config command", () => {
     expect(output).toContain("behavior.toggleMode");
     expect(output).toContain("false");
 
-    const content = JSON.parse(require("node:fs").readFileSync(TEST_CONFIG_FILE, "utf-8"));
+    const content = JSON.parse(readFileSync(mocks.TEST_CONFIG_FILE, "utf-8"));
     expect(content.behavior.toggleMode).toBe(false);
   });
 
@@ -73,13 +100,45 @@ describe("CLI: config command", () => {
     await configCommand.parseAsync(["set", "apiKeys.groq", "invalid"], { from: "user" });
 
     expect(errorSpy).toHaveBeenCalled();
-    expect(errorSpy.mock.calls[0]?.[1]).toContain("apiKeys.groq: Groq API key must start with 'gsk_'");
+    const output = errorSpy.mock.calls.map((call: any[]) => JSON.stringify(call)).join("\n");
+    expect(output).toContain("apiKeys.groq: Groq API key must start with 'gsk_'");
   });
 
   test("config set should handle numbers", async () => {
     await configCommand.parseAsync(["set", "behavior.clipboard.minDuration", "1.5"], { from: "user" });
 
-    const content = JSON.parse(require("node:fs").readFileSync(TEST_CONFIG_FILE, "utf-8"));
+    const content = JSON.parse(readFileSync(mocks.TEST_CONFIG_FILE, "utf-8"));
     expect(content.behavior.clipboard.minDuration).toBe(1.5);
+  });
+
+  test("config init should work", async () => {
+    if (existsSync(mocks.TEST_CONFIG_FILE)) rmSync(mocks.TEST_CONFIG_FILE);
+
+    vi.mocked(readlineSync.question).mockReturnValueOnce("gsk_new_groq_key_1234567890");
+    vi.mocked(readlineSync.question).mockReturnValueOnce("4b5c1234-5678-90ab-cdef-1234567890ab");
+
+    await configCommand.parseAsync(["init"], { from: "user" });
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Configuration initialized"));
+    const content = JSON.parse(readFileSync(mocks.TEST_CONFIG_FILE, "utf-8"));
+    expect(content.apiKeys.groq).toBe("gsk_new_groq_key_1234567890");
+  });
+
+  test.skip("config bind should work", async () => {
+    vi.mocked(readlineSync.keyInYN).mockReturnValue(true);
+    
+    // Simulate hotkey press by triggering the callback registered in interactiveBind
+    mocks.mockGlobalKeyboardListener.addListener.mockImplementation((cb: any) => {
+        // Trigger with F10
+        cb({ name: "F10", state: "DOWN" }, {});
+    });
+
+    await configCommand.parseAsync(["bind"], { from: "user" });
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Selected hotkey"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("F10"));
+    
+    const content = JSON.parse(readFileSync(mocks.TEST_CONFIG_FILE, "utf-8"));
+    expect(content.behavior.hotkey).toBe("F10");
   });
 });

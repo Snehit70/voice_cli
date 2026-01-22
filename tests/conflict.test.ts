@@ -1,60 +1,62 @@
-import { describe, expect, test, mock, beforeEach } from "bun:test";
-import { logger } from "../src/utils/logger";
-import { notify } from "../src/output/notification";
+import { describe, expect, test, vi, beforeEach } from "vitest";
 
-let mockExecOutput = { stdout: "OK", stderr: "" };
-let mockExecError: Error | null = null;
+const mocks = vi.hoisted(() => ({
+  execOutput: { stdout: "OK", stderr: "" },
+  execError: null as Error | null
+}));
 
-// Mock util.promisify to return a function that returns our mock output
-mock.module("node:util", () => ({
+vi.mock("node:util", () => ({
   promisify: (fn: any) => {
     return async (...args: any[]) => {
-      if (mockExecError) throw mockExecError;
-      return mockExecOutput;
+      if (mocks.execError) throw mocks.execError;
+      return mocks.execOutput;
     };
   },
 }));
 
-mock.module("node:child_process", () => ({
-  exec: mock(() => {}),
+vi.mock("node:child_process", () => ({
+  exec: vi.fn(),
 }));
 
-mock.module("node:fs", () => ({
-  writeFileSync: mock(() => {}),
-  unlinkSync: mock(() => {}),
+vi.mock("node:fs", () => ({
+  writeFileSync: vi.fn(),
+  unlinkSync: vi.fn(),
 }));
 
-mock.module("../src/utils/logger", () => ({
+vi.mock("../src/utils/logger", () => ({
   logger: {
-    warn: mock(() => {}),
-    debug: mock(() => {}),
-    info: mock(() => {}),
-    error: mock(() => {}),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
-mock.module("../src/output/notification", () => ({
-  notify: mock(() => {}),
+vi.mock("../src/output/notification", () => ({
+  notify: vi.fn(),
 }));
 
 import { checkHotkeyConflict } from "../src/daemon/conflict";
+import { logger } from "../src/utils/logger";
+import { notify } from "../src/output/notification";
 
 describe("checkHotkeyConflict", () => {
   beforeEach(() => {
-    mock.restore();
-    mockExecOutput = { stdout: "OK", stderr: "" };
-    mockExecError = null;
+    vi.clearAllMocks();
+    mocks.execOutput.stdout = "OK";
+    mocks.execOutput.stderr = "";
+    mocks.execError = null;
   });
 
   test("should return false when python script prints OK", async () => {
-    mockExecOutput = { stdout: "OK", stderr: "" };
+    mocks.execOutput.stdout = "OK";
     const result = await checkHotkeyConflict("Ctrl+Space");
     expect(result).toBe(false);
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
   test("should return true when python script prints CONFLICT", async () => {
-    mockExecOutput = { stdout: "CONFLICT", stderr: "" };
+    mocks.execOutput.stdout = "CONFLICT";
     const result = await checkHotkeyConflict("Ctrl+Space");
     expect(result).toBe(true);
     expect(logger.warn).toHaveBeenCalled();
@@ -68,7 +70,7 @@ describe("checkHotkeyConflict", () => {
   });
 
   test("should handle execution errors gracefully", async () => {
-    mockExecError = new Error("Python missing");
+    mocks.execError = new Error("Python missing");
     const result = await checkHotkeyConflict("Ctrl+Space");
     expect(result).toBe(false);
     expect(logger.debug).toHaveBeenCalled();

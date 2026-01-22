@@ -7,8 +7,13 @@
     "@types/bun": "latest",
     "@types/node-notifier": "^8.0.5",
     "@types/pino": "^7.0.5",
+    "@vitest/coverage-v8": "^4.0.17",
     "readline-sync": "^1.4.10",
     "vitest": "^4.0.17"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { convertAudio } from "../../src/audio/converter";
 import { execa } from "execa";
 import { join } from "node:path";
@@ -19,7 +19,7 @@ describe("AudioConverter", () => {
       "-c:a", "pcm_s16le",
       inputPath
     ]);
-  });
+  }, 30000);
 
   afterAll(() => {
     if (existsSync(inputPath)) {

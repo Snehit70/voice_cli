@@ -1,51 +1,75 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
+import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+// --- SHARED MOCKS ---
+
+const mocks = vi.hoisted(() => {
+  const { EventEmitter } = require("node:events");
+  const stream = new EventEmitter();
+  const stop = vi.fn();
+  return {
+    groqCreate: vi.fn(),
+    groqList: vi.fn(),
+    transcribeFile: vi.fn(),
+    getProjects: vi.fn(),
+    stream: stream,
+    stop: stop,
+    record: vi.fn(() => ({
+      stream: () => stream,
+      stop: stop,
+      process: { stderr: new EventEmitter() }
+    })),
+    logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+    logError: vi.fn()
+  };
+});
+
+vi.mock("groq-sdk", () => ({
+  default: class {
+    audio = { transcriptions: { create: mocks.groqCreate } };
+    models = { list: mocks.groqList };
+  }
+}));
+
+vi.mock("@deepgram/sdk", () => ({
+  createClient: () => ({
+    listen: { prerecorded: { transcribeFile: mocks.transcribeFile } },
+    manage: { getProjects: mocks.getProjects }
+  })
+}));
+
+vi.mock("node-record-lpcm16", () => ({
+  record: mocks.record
+}));
+
+vi.mock("../../src/utils/retry", () => ({
+  withRetry: async (fn: any) => await fn()
+}));
+
+vi.mock("../../src/utils/logger", () => ({
+  logger: mocks.logger,
+  logError: mocks.logError
+}));
+
+// Mock node:fs to prevent real file operations during tests
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    writeFileSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    createReadStream: vi.fn(() => new EventEmitter()),
+    // Keep existsSync and others as they are used for TEST_DIR setup
+  };
+});
+
 import { GroqClient } from "../../src/transcribe/groq";
 import { DeepgramTranscriber } from "../../src/transcribe/deepgram";
 import { AudioRecorder } from "../../src/audio/recorder";
 import { loadConfig } from "../../src/config/loader";
-import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { EventEmitter } from "node:events";
-
-// --- SHARED MOCKS ---
-
-const mockGroqCreate = mock();
-const mockGroqList = mock();
-mock.module("groq-sdk", () => ({
-  default: class {
-    audio = { transcriptions: { create: mockGroqCreate } };
-    models = { list: mockGroqList };
-  }
-}));
-
-const mockTranscribeFile = mock();
-const mockGetProjects = mock();
-mock.module("@deepgram/sdk", () => ({
-  createClient: () => ({
-    listen: { prerecorded: { transcribeFile: mockTranscribeFile } },
-    manage: { getProjects: mockGetProjects }
-  })
-}));
-
-const mockStream = new EventEmitter();
-const mockStop = mock(() => {});
-mock.module("node-record-lpcm16", () => ({
-  record: mock(() => ({
-    stream: () => mockStream,
-    stop: mockStop,
-    process: { stderr: new EventEmitter() }
-  }))
-}));
-
-mock.module("../../src/utils/retry", () => ({
-  withRetry: async (fn: any) => await fn()
-}));
-
-mock.module("../../src/utils/logger", () => ({
-  logger: { info: mock(), error: mock(), warn: mock() },
-  logError: mock()
-}));
 
 // --- TESTS ---
 
@@ -60,13 +84,10 @@ describe("Unified Error Handling Tests", () => {
       GROQ_API_KEY: "gsk_test_key_1234567890",
       DEEPGRAM_API_KEY: "4b5c1234-5678-90ab-cdef-1234567890ab"
     };
+    // Ensure we use real fs for TEST_DIR setup before it's used in tests
     if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true });
-    mockGroqCreate.mockClear();
-    mockGroqList.mockClear();
-    mockTranscribeFile.mockClear();
-    mockGetProjects.mockClear();
-    mockStop.mockClear();
-    mockStream.removeAllListeners();
+    vi.clearAllMocks();
+    mocks.stream.removeAllListeners();
   });
 
   afterEach(() => {
@@ -76,12 +97,13 @@ describe("Unified Error Handling Tests", () => {
 
   describe("ConfigLoader Errors", () => {
     it("should throw error on corrupted config", () => {
-      writeFileSync(CONFIG_FILE, "{invalid");
+      // Use real writeFileSync for this test as loadConfig uses real fs
+      require("node:fs").writeFileSync(CONFIG_FILE, "{invalid");
       expect(() => loadConfig(CONFIG_FILE)).toThrow("Configuration file is corrupted");
     });
 
     it("should validate API key formats", () => {
-      writeFileSync(CONFIG_FILE, JSON.stringify({ apiKeys: { groq: "invalid" } }));
+      require("node:fs").writeFileSync(CONFIG_FILE, JSON.stringify({ apiKeys: { groq: "invalid" } }));
       expect(() => loadConfig(CONFIG_FILE)).toThrow("Groq API key must start with 'gsk_'");
     });
 
@@ -90,7 +112,7 @@ describe("Unified Error Handling Tests", () => {
         apiKeys: { groq: "gsk_test", deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab" },
         transcription: { boostWords: Array(451).fill("word") }
       };
-      writeFileSync(CONFIG_FILE, JSON.stringify(configData));
+      require("node:fs").writeFileSync(CONFIG_FILE, JSON.stringify(configData));
       expect(() => loadConfig(CONFIG_FILE)).toThrow("Boost words limit exceeded");
     });
   });
@@ -99,19 +121,19 @@ describe("Unified Error Handling Tests", () => {
     const audioBuffer = Buffer.from("fake-audio");
 
     it("should throw 'Invalid API Key' on 401", async () => {
-      mockGroqList.mockRejectedValue({ status: 401 });
+      mocks.groqList.mockRejectedValue({ status: 401 });
       const client = new GroqClient();
       await expect(client.checkConnection()).rejects.toThrow("Groq: Invalid API Key");
     });
 
     it("should throw Rate Limit error on 429", async () => {
-      mockGroqCreate.mockRejectedValue({ status: 429 });
+      mocks.groqCreate.mockRejectedValue({ status: 429 });
       const client = new GroqClient();
       await expect(client.transcribe(audioBuffer)).rejects.toThrow("Groq: Rate limit exceeded");
     });
 
     it("should throw Timeout error on timeout message", async () => {
-      mockGroqCreate.mockRejectedValue(new Error("Request timed out"));
+      mocks.groqCreate.mockRejectedValue(new Error("Request timed out"));
       const client = new GroqClient();
       await expect(client.transcribe(audioBuffer)).rejects.toThrow("Groq: Request timed out");
     });
@@ -121,44 +143,46 @@ describe("Unified Error Handling Tests", () => {
     const audioBuffer = Buffer.from("fake-audio");
 
     it("should throw 'Invalid API Key' on 401", async () => {
-      mockGetProjects.mockResolvedValue({ error: { status: 401 } });
+      mocks.getProjects.mockResolvedValue({ error: { status: 401 } });
       const transcriber = new DeepgramTranscriber();
       await expect(transcriber.checkConnection()).rejects.toThrow("Deepgram: Invalid API Key");
     });
 
     it("should throw Rate Limit error on 429", async () => {
-      mockTranscribeFile.mockResolvedValue({ error: { status: 429 } });
+      mocks.transcribeFile.mockResolvedValue({ error: { status: 429 } });
       const transcriber = new DeepgramTranscriber();
       await expect(transcriber.transcribe(audioBuffer)).rejects.toThrow("Deepgram: Rate limit exceeded");
     });
 
     it("should fallback to nova-2 on nova-3 failure", async () => {
-      mockTranscribeFile.mockResolvedValueOnce({ error: { status: 500 } });
-      mockTranscribeFile.mockResolvedValueOnce({ 
+      mocks.transcribeFile.mockResolvedValueOnce({ error: { status: 500 } });
+      mocks.transcribeFile.mockResolvedValueOnce({ 
         result: { results: { channels: [{ alternatives: [{ transcript: "fallback" }] }] } },
         error: null 
       });
       const transcriber = new DeepgramTranscriber();
       const res = await transcriber.transcribe(audioBuffer);
       expect(res).toBe("fallback");
-      expect(mockTranscribeFile).toHaveBeenCalledTimes(2);
+      expect(mocks.transcribeFile).toHaveBeenCalledTimes(2);
     });
   });
 
   describe("AudioRecorder Errors", () => {
-    it("should handle busy microphone", async (done) => {
-      const recorder = new AudioRecorder();
-      await recorder.start();
-      // @ts-ignore
-      const stderr = recorder.recording!.process!.stderr!;
-      recorder.on("error", (err) => {
-        try {
-          expect(err.message).toContain("Microphone is busy");
-          done();
-        } catch (e) { done(e); }
+    it("should handle busy microphone", () => {
+      return new Promise<void>(async (resolve, reject) => {
+        const recorder = new AudioRecorder();
+        await recorder.start();
+        // @ts-ignore
+        const stderr = recorder.recording!.process!.stderr!;
+        recorder.on("error", (err) => {
+          try {
+            expect(err.message).toContain("Microphone is busy");
+            resolve();
+          } catch (e) { reject(e); }
+        });
+        stderr.emit("data", Buffer.from("audio open error: Device or resource busy"));
+        mocks.stream.emit("error", new Error("EBUSY"));
       });
-      stderr.emit("data", Buffer.from("audio open error: Device or resource busy"));
-      mockStream.emit("error", new Error("EBUSY"));
     });
   });
 });

@@ -1,9 +1,9 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, vi } from "vitest";
 import { withRetry } from "../src/utils/retry";
 
 describe("withRetry", () => {
   it("should return result if operation succeeds", async () => {
-    const operation = mock(async () => "success");
+    const operation = vi.fn(async () => "success");
     const result = await withRetry(operation);
     expect(result).toBe("success");
     expect(operation).toHaveBeenCalledTimes(1);
@@ -11,7 +11,7 @@ describe("withRetry", () => {
 
   it("should retry on failure", async () => {
     let attempts = 0;
-    const operation = mock(async () => {
+    const operation = vi.fn(async () => {
       attempts++;
       if (attempts === 1) throw new Error("fail");
       return "success";
@@ -23,7 +23,7 @@ describe("withRetry", () => {
   });
 
   it("should fail after max retries", async () => {
-    const operation = mock(async () => {
+    const operation = vi.fn(async () => {
       throw new Error("fail");
     });
 
@@ -36,7 +36,7 @@ describe("withRetry", () => {
   });
 
   it("should timeout if operation takes too long", async () => {
-    const operation = mock(async () => {
+    const operation = vi.fn(async () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       return "success";
     });
@@ -52,7 +52,7 @@ describe("withRetry", () => {
 
   it("should not retry if shouldRetry returns false", async () => {
     let attempts = 0;
-    const operation = mock(async () => {
+    const operation = vi.fn(async () => {
       attempts++;
       const error = new Error("fatal");
       (error as any).fatal = true;

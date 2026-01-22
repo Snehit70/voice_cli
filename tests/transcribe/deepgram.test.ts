@@ -1,19 +1,19 @@
-import { describe, test, expect, mock, beforeEach } from "bun:test";
+import { describe, test, expect, vi, beforeEach } from "vitest";
 
-// Mocks must be defined before imports in Bun (hoisting handles this, but good to be explicit in intent)
-
-const mockTranscribeFile = mock(() => Promise.resolve({
-  result: {
-    results: {
-      channels: [{
-        alternatives: [{ transcript: "Mock transcript" }]
-      }]
-    }
-  },
-  error: null
+const { mockTranscribeFile } = vi.hoisted(() => ({
+  mockTranscribeFile: vi.fn(() => Promise.resolve({
+    result: {
+      results: {
+        channels: [{
+          alternatives: [{ transcript: "Mock transcript" }]
+        }]
+      }
+    },
+    error: null
+  }))
 }));
 
-mock.module("@deepgram/sdk", () => ({
+vi.mock("@deepgram/sdk", () => ({
   createClient: () => ({
     listen: {
       prerecorded: {
@@ -23,17 +23,17 @@ mock.module("@deepgram/sdk", () => ({
   })
 }));
 
-mock.module("../../src/config/loader", () => ({
+vi.mock("../../src/config/loader", () => ({
   loadConfig: () => ({
     apiKeys: {
-      deepgram: "4b5c1234567890abcdef1234567890abcdef12"
+      deepgram: "4b5c1234-5678-90ab-cdef-1234567890ab"
     }
   })
 }));
 
-mock.module("../../src/utils/logger", () => ({
-  logger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
-  logError: () => {}
+vi.mock("../../src/utils/logger", () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  logError: vi.fn()
 }));
 
 import { DeepgramTranscriber } from "../../src/transcribe/deepgram";
@@ -61,10 +61,8 @@ describe("DeepgramTranscriber", () => {
     expect(result).toBe("Mock transcript");
     expect(mockTranscribeFile).toHaveBeenCalledTimes(1);
     
-    const callArgs = mockTranscribeFile.mock.calls[0];
-    // @ts-ignore
+    const callArgs = (mockTranscribeFile.mock.calls as any)[0];
     const buffer = callArgs[0];
-    // @ts-ignore
     const options = callArgs[1];
     
     expect(buffer).toBeDefined();
@@ -77,8 +75,7 @@ describe("DeepgramTranscriber", () => {
     const transcriber = new DeepgramTranscriber();
     await transcriber.transcribe(Buffer.from("audio"), "es", ["keyword1"]);
     
-    // @ts-ignore
-    const options = mockTranscribeFile.mock.calls[0][1];
+    const options = (mockTranscribeFile.mock.calls as any)[0][1];
     expect((options as any).language).toBe("es");
     expect((options as any).keywords).toEqual(["keyword1"]);
   });
@@ -103,13 +100,10 @@ describe("DeepgramTranscriber", () => {
      expect(result).toBe("Fallback transcript");
      expect(mockTranscribeFile).toHaveBeenCalledTimes(TOTAL_ATTEMPTS_BEFORE_FALLBACK + 1);
      
-     // @ts-ignore
-     expect(mockTranscribeFile.mock.calls[0][1].model).toBe("nova-3");
-     // @ts-ignore
-     expect(mockTranscribeFile.mock.calls[TOTAL_ATTEMPTS_BEFORE_FALLBACK - 1][1].model).toBe("nova-3");
+     expect((mockTranscribeFile.mock.calls as any)[0][1].model).toBe("nova-3");
+     expect((mockTranscribeFile.mock.calls as any)[TOTAL_ATTEMPTS_BEFORE_FALLBACK - 1][1].model).toBe("nova-3");
      
-     // @ts-ignore
-     expect(mockTranscribeFile.mock.calls[TOTAL_ATTEMPTS_BEFORE_FALLBACK][1].model).toBe("nova-2");
+     expect((mockTranscribeFile.mock.calls as any)[TOTAL_ATTEMPTS_BEFORE_FALLBACK][1].model).toBe("nova-2");
   });
 
   test("should throw specific error on 401 (Invalid API Key)", async () => {

@@ -353,17 +353,17 @@ interface DaemonState {
 - [x] Add error for daemon already running (show how to stop)
 - [x] Add error for config file corrupted (show how to reset)
 - [x] Add error for both APIs failing (show retry instructions)
-- [ ] Log all errors to file for debugging
+- [x] Log all errors to file for debugging
 
 ### Phase 19: Testing - Unit Tests (Priority: High)
-- [ ] Write unit tests for config file reader/writer
-- [ ] Write unit tests for API key validation
-- [ ] Write unit tests for boost words validation
-- [ ] Write unit tests for hotkey validation
-- [ ] Write unit tests for audio duration validation
-- [ ] Write unit tests for transcript merging logic
-- [ ] Write unit tests for error handling paths
-- [ ] Write unit tests for daemon state management
+- [x] Write unit tests for config file reader/writer
+- [x] Write unit tests for API key validation
+- [x] Write unit tests for boost words validation
+- [x] Write unit tests for hotkey validation
+- [x] Write unit tests for audio duration validation
+- [x] Write unit tests for transcript merging logic
+- [x] Write unit tests for error handling paths
+- [x] Write unit tests for daemon state management
 - [ ] Achieve 80%+ test coverage
 
 ### Phase 20: Testing - Integration Tests (Priority: High)

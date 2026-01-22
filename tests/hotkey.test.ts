@@ -1,37 +1,45 @@
-import { describe, expect, test, beforeEach, spyOn, mock } from "bun:test";
-import { EventEmitter } from "node:events";
+import { describe, expect, test, beforeEach, vi } from "vitest";
 
-const mockGlobalKeyboardListener = new EventEmitter();
-(mockGlobalKeyboardListener as any).kill = mock(() => {});
-(mockGlobalKeyboardListener as any).addListener = mock(() => {});
+const mocks = vi.hoisted(() => {
+  const addListener = vi.fn();
+  const kill = vi.fn();
+  
+  const mockGlobalKeyboardListener = {
+    addListener,
+    kill,
+  };
+  
+  function MockConstructor() {
+    return mockGlobalKeyboardListener;
+  }
+  
+  return {
+    mockGlobalKeyboardListener,
+    MockGlobalKeyboardListenerConstructor: vi.fn().mockImplementation(MockConstructor),
+    currentConfig: { behavior: { hotkey: "F10" } }
+  };
+});
 
-const MockGlobalKeyboardListenerConstructor = mock(() => mockGlobalKeyboardListener);
-
-mock.module("node-global-key-listener", () => ({
-  GlobalKeyboardListener: MockGlobalKeyboardListenerConstructor
+vi.mock("node-global-key-listener", () => ({
+  GlobalKeyboardListener: mocks.MockGlobalKeyboardListenerConstructor
 }));
 
-mock.module("../src/utils/logger", () => ({
+vi.mock("../src/utils/logger", () => ({
   logger: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn()
   },
-  logError: mock(() => {}),
+  logError: vi.fn(),
 }));
 
-mock.module("../src/output/notification", () => ({
-  notify: mock(() => {}),
+vi.mock("../src/output/notification", () => ({
+  notify: vi.fn(),
 }));
 
-const validConfig = {
-  behavior: { hotkey: "Right Control" }
-};
-
-let currentConfig = validConfig;
-
-mock.module("../src/config/loader", () => ({
-  loadConfig: () => currentConfig
+vi.mock("../src/config/loader", () => ({
+  loadConfig: () => mocks.currentConfig
 }));
 
 import { HotkeyListener } from "../src/daemon/hotkey";
@@ -42,27 +50,25 @@ describe("HotkeyListener", () => {
   let listener: HotkeyListener;
 
   beforeEach(() => {
-    MockGlobalKeyboardListenerConstructor.mockClear();
-    (notify as any).mockClear();
-    (logError as any).mockClear();
-    currentConfig = validConfig;
+    vi.clearAllMocks();
+    mocks.currentConfig = { behavior: { hotkey: "F10" } };
     listener = new HotkeyListener();
   });
 
   test("should start successfully with valid config", () => {
     listener.start();
-    expect(MockGlobalKeyboardListenerConstructor).toHaveBeenCalled();
+    expect(mocks.MockGlobalKeyboardListenerConstructor).toHaveBeenCalled();
   });
 
   test("should notify and not start if trigger key is empty", () => {
-    currentConfig = { behavior: { hotkey: "" } };
+    mocks.currentConfig = { behavior: { hotkey: "" } };
     listener.start();
     expect(notify).toHaveBeenCalledWith("Configuration Error", expect.stringContaining("empty trigger key"), "error");
-    expect(MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
+    expect(mocks.MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
   });
 
   test("should notify and throw if listener instantiation fails", () => {
-    MockGlobalKeyboardListenerConstructor.mockImplementationOnce(() => {
+    mocks.MockGlobalKeyboardListenerConstructor.mockImplementationOnce(() => {
       throw new Error("Native error");
     });
 
@@ -73,8 +79,56 @@ describe("HotkeyListener", () => {
 
   test("should not start if already registered", () => {
     listener.start();
-    MockGlobalKeyboardListenerConstructor.mockClear();
+    mocks.MockGlobalKeyboardListenerConstructor.mockClear();
     listener.start();
-    expect(MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
+    expect(mocks.MockGlobalKeyboardListenerConstructor).not.toHaveBeenCalled();
+  });
+
+  test("should emit trigger event on hotkey press", () => {
+    let callback: any;
+    mocks.mockGlobalKeyboardListener.addListener.mockImplementation((cb: any) => {
+        callback = cb;
+    });
+
+    let triggered = false;
+    listener.on("trigger", () => { triggered = true; });
+    
+    listener.start();
+    
+    // Simulate F10 press
+    callback({ name: "F10", state: "DOWN" }, { "F10": true });
+    expect(triggered).toBe(true);
+  });
+
+  test("should handle modifier combinations (e.g. Ctrl+Space)", () => {
+    mocks.currentConfig = { behavior: { hotkey: "Ctrl+Space" } };
+    let callback: any;
+    mocks.mockGlobalKeyboardListener.addListener.mockImplementation((cb: any) => {
+        callback = cb;
+    });
+
+    let triggered = false;
+    listener.on("trigger", () => { triggered = true; });
+    
+    listener.start();
+    
+    // Simulate Ctrl+Space
+    // First Ctrl DOWN
+    callback({ name: "LEFT CTRL", state: "DOWN" }, { "LEFT CTRL": true });
+    expect(triggered).toBe(false);
+
+    // Then Space DOWN
+    callback({ name: "SPACE", state: "DOWN" }, { "LEFT CTRL": true, "SPACE": true });
+    expect(triggered).toBe(true);
+  });
+
+  test("should stop listener successfully", () => {
+    listener.start();
+    listener.stop();
+    expect(mocks.mockGlobalKeyboardListener.kill).toHaveBeenCalled();
+  });
+
+  test("should not throw on stop if not started", () => {
+    expect(() => listener.stop()).not.toThrow();
   });
 });

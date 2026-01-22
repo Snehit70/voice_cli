@@ -1,49 +1,58 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
-import { GroqClient } from "../../src/transcribe/groq";
-import { loadConfig } from "../../src/config/loader";
-import { withRetry } from "../../src/utils/retry";
-import { writeFileSync, unlinkSync } from "node:fs";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-mock.module("../../src/config/loader", () => ({
-  loadConfig: mock(() => ({
+const mocks = vi.hoisted(() => ({
+  create: vi.fn(async () => ({ text: "  transcribed text  " })),
+  list: vi.fn(async () => ({ data: [{ id: "model1" }] }))
+}));
+
+vi.mock("../../src/config/loader", () => ({
+  loadConfig: vi.fn(() => ({
     apiKeys: {
       groq: "gsk_test_key"
     }
   }))
 }));
 
-mock.module("groq-sdk", () => {
+vi.mock("groq-sdk", () => {
   return {
     default: class MockGroq {
       audio = {
         transcriptions: {
-          create: mock(async () => ({ text: "  transcribed text  " }))
+          create: mocks.create
         }
       };
       models = {
-        list: mock(async () => ({ data: [{ id: "model1" }] }))
+        list: mocks.list
       };
     }
   };
 });
 
-mock.module("node:fs", () => ({
-  writeFileSync: mock(),
-  unlinkSync: mock(),
-  createReadStream: mock(() => "mock-stream")
-}));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    writeFileSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    createReadStream: vi.fn(() => "mock-stream")
+  };
+});
 
-mock.module("../../src/utils/retry", () => ({
+vi.mock("../../src/utils/retry", () => ({
   withRetry: async (fn: any, opts: any) => {
     return await fn();
   }
 }));
+
+import { GroqClient } from "../../src/transcribe/groq";
 
 describe("GroqClient", () => {
   let client: GroqClient;
 
   beforeEach(() => {
     client = new GroqClient();
+    mocks.create.mockClear();
+    mocks.list.mockClear();
   });
 
   it("should transcribe audio successfully", async () => {

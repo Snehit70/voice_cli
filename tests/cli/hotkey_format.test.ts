@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { normalizeKeyName, formatCombination } from "../../src/cli/config";
 
 describe("Hotkey Formatting", () => {
