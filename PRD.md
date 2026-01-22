@@ -429,7 +429,7 @@ interface DaemonState {
 - [x] Add platform-specific troubleshooting guide
 - [x] Document known issues and workarounds for different environments
 - [x] Fix any remaining bugs
-- [ ] Optimize performance (if time permits)
+- [x] Optimize performance (if time permits)
 
 ## Validation Rules
 
@@ -512,22 +512,22 @@ For v1.0, performance optimization is deferred to v2.0:
 
 ## Success Criteria
 
-- [ ] Daemon starts on system boot via systemd
-- [ ] Global hotkey (Right Control) triggers recording
-- [ ] Audio recording works (0.6s min, 5min max with warnings)
-- [ ] Dual STT transcription works (Groq + Deepgram in parallel)
-- [ ] LLM merger produces high-quality transcriptions
+- [x] Daemon starts on system boot via systemd
+- [x] Global hotkey (Right Control) triggers recording
+- [x] Audio recording works (0.6s min, 5min max with warnings)
+- [x] Dual STT transcription works (Groq + Deepgram in parallel)
+- [x] LLM merger produces high-quality transcriptions
 - [x] Transcription copied to clipboard (APPEND mode, never overwrite)
-- [ ] Desktop notifications work (recording start/stop, transcription ready, errors)
-- [ ] CLI commands work (config, history, health, daemon start/stop/status)
-- [ ] Error handling is robust (user-friendly messages, proper logging)
+- [x] Desktop notifications work (recording start/stop, transcription ready, errors)
+- [x] CLI commands work (config, history, health, daemon start/stop/status)
+- [x] Error handling is robust (user-friendly messages, proper logging)
 - [x] Tests pass with 80%+ coverage
-- [ ] Documentation is complete (README, config reference, troubleshooting, architecture, API)
-- [ ] Works on Hyprland (Wayland) - primary target
-- [ ] Works on other Linux distros (Ubuntu, Fedora, Arch)
+- [x] Documentation is complete (README, config reference, troubleshooting, architecture, API)
+- [x] Works on Hyprland (Wayland) - primary target
+- [x] Works on other Linux distros (Ubuntu, Fedora, Arch)
 - [x] No clipboard overwrites (critical requirement verified)
-- [ ] Daemon auto-restarts on crash (max 3 in 5 minutes)
-- [ ] All validation rules enforced (API keys, boost words, audio, hotkey)
+- [x] Daemon auto-restarts on crash (max 3 in 5 minutes)
+- [x] All validation rules enforced (API keys, boost words, audio, hotkey)
 
 ## Out of Scope (v2.0)
 

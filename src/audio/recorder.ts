@@ -2,7 +2,9 @@ import { EventEmitter } from "node:events";
 import { record, type Recording } from "node-record-lpcm16";
 import { logError, logger } from "../utils/logger";
 import { loadConfig } from "../config/loader";
-import { AppError } from "../utils/errors";
+import { AppError, type ErrorCode } from "../utils/errors";
+import { withRetry } from "../utils/retry";
+import { execSync } from "node:child_process";
 
 export class AudioRecorder extends EventEmitter {
   private recording: Recording | null = null;
@@ -18,6 +20,10 @@ export class AudioRecorder extends EventEmitter {
 
   constructor() {
     super();
+    this.loadSettings();
+  }
+
+  private loadSettings() {
     try {
       const config = loadConfig();
       this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
@@ -35,83 +41,122 @@ export class AudioRecorder extends EventEmitter {
       throw new AppError("ALREADY_RECORDING", "Already recording");
     }
 
+    this.loadSettings();
     this.chunks = [];
     this.startTime = Date.now();
 
     const config = loadConfig();
-    this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
-    this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
-
+    
     try {
-      this.recording = record({
-        sampleRate: 16000,
-        channels: 1,
-        audioType: "wav",
-        recorder: "arecord",
-        device: config.behavior.audioDevice,
-      });
-
-      let stderrOutput = "";
-      if (this.recording.process && this.recording.process.stderr) {
-        this.recording.process.stderr.on("data", (chunk: Buffer) => {
-          stderrOutput += chunk.toString();
-        });
-      }
-
-      const stream = this.recording.stream();
-
-      stream.on("data", (chunk: Buffer) => {
-        this.chunks.push(chunk);
-      });
-
-      stream.on("error", (err: unknown) => {
-        let errorMessage = err instanceof Error ? err.message : String(err);
-        let errorCode: any = "UNKNOWN_ERROR";
-        
-        if (stderrOutput) {
-          if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
-            errorMessage = "No microphone detected. Please check if your microphone is connected and configured correctly.";
-            errorCode = "NO_MICROPHONE";
-          } else if (stderrOutput.includes("Device or resource busy")) {
-            errorMessage = "Microphone is busy. Another application might be using it.";
-            errorCode = "DEVICE_BUSY";
-          } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
-            errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
-            errorCode = "PERMISSION_DENIED";
-          } else {
-            errorMessage = `${errorMessage}. Details: ${stderrOutput.trim()}`;
-          }
-        }
-
-        const enhancedError = new AppError(errorCode, errorMessage, { stderr: stderrOutput });
-        logError("Audio stream error", enhancedError, { stderr: stderrOutput });
-        this.emit("error", enhancedError);
-        this.stop(true);
-      });
-
-      this.warningTimer4m = setTimeout(() => {
-        logger.warn("Recording limit approaching (4m)");
-        this.emit("warning", "Recording limit approaching (4m)");
-      }, this.WARNING_4M);
-
-      this.warningTimer430m = setTimeout(() => {
-        logger.warn("Recording limit approaching (4m 30s)");
-        this.emit("warning", "Recording limit approaching (4m 30s)");
-      }, this.WARNING_430M);
-
-      this.timer = setTimeout(() => {
-        logger.warn("Recording limit reached (5m). Auto-stopping.");
-        this.emit("warning", "Recording limit reached (5m). Stopping...");
-        this.stop();
-      }, this.maxDuration);
-
-      logger.info({ device: config.behavior.audioDevice }, "Recording started");
-      this.emit("start");
-    } catch (error) {
-      logError("Failed to start recording", error, { device: config.behavior.audioDevice });
-      this.cleanup();
-      throw error;
+      execSync("arecord --version", { stdio: "ignore" });
+    } catch (e) {
+      throw new AppError("AUDIO_BACKEND_MISSING", "Audio recording backend 'arecord' is not installed or not in PATH.");
     }
+
+    await withRetry(async () => {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          this.recording = record({
+            sampleRate: 16000,
+            channels: 1,
+            audioType: "wav",
+            recorder: "arecord",
+            device: config.behavior.audioDevice,
+          });
+
+          let stderrOutput = "";
+          if (this.recording.process && this.recording.process.stderr) {
+            this.recording.process.stderr.on("data", (chunk: Buffer) => {
+              stderrOutput += chunk.toString();
+            });
+          }
+
+          const stream = this.recording.stream();
+          let streamStarted = false;
+
+          stream.on("data", (chunk: Buffer) => {
+            if (!streamStarted) {
+              streamStarted = true;
+              resolve();
+            }
+            this.chunks.push(chunk);
+          });
+
+          stream.once("error", (err: unknown) => {
+            let errorMessage = err instanceof Error ? err.message : String(err);
+            let errorCode: ErrorCode = "UNKNOWN_ERROR";
+            
+            if (stderrOutput) {
+              if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
+                errorMessage = "No microphone detected. Please check if your microphone is connected and configured correctly.";
+                errorCode = "NO_MICROPHONE";
+              } else if (stderrOutput.includes("Device or resource busy")) {
+                errorMessage = "Microphone is busy. Another application might be using it.";
+                errorCode = "DEVICE_BUSY";
+              } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
+                errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
+                errorCode = "PERMISSION_DENIED";
+              } else {
+                errorMessage = `${errorMessage}. Details: ${stderrOutput.trim()}`;
+              }
+            }
+
+            const enhancedError = new AppError(errorCode, errorMessage, { stderr: stderrOutput });
+            
+            if (!streamStarted) {
+              this.cleanupRecording();
+              reject(enhancedError);
+            } else {
+              logError("Audio stream error", enhancedError, { stderr: stderrOutput });
+              this.emit("error", enhancedError);
+              this.stop(true);
+            }
+          });
+
+          // Fallback resolve if no data for 500ms but no error yet
+          setTimeout(() => {
+            if (!streamStarted && this.recording) {
+              streamStarted = true;
+              resolve();
+            }
+          }, 500);
+
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }, {
+      operationName: "Start recording",
+      maxRetries: 2,
+      backoffs: [100, 200],
+      shouldRetry: (err) => {
+        return err instanceof AppError && err.code === "DEVICE_BUSY";
+      }
+    });
+
+    this.setupTimers();
+    logger.info({ device: config.behavior.audioDevice }, "Recording started");
+    this.emit("start");
+  }
+
+  private setupTimers() {
+    this.cleanupTimers();
+    
+    this.warningTimer4m = setTimeout(() => {
+      logger.warn("Recording limit approaching (4m)");
+      this.emit("warning", "Recording limit approaching (4m)");
+    }, this.WARNING_4M);
+
+    this.warningTimer430m = setTimeout(() => {
+      logger.warn("Recording limit approaching (4m 30s)");
+      this.emit("warning", "Recording limit approaching (4m 30s)");
+    }, this.WARNING_430M);
+
+    this.timer = setTimeout(() => {
+      logger.warn("Recording limit reached (5m). Auto-stopping.");
+      this.emit("warning", "Recording limit reached (5m). Stopping...");
+      this.stop();
+    }, this.maxDuration);
   }
 
   public async stop(force = false): Promise<Buffer | null> {
@@ -120,16 +165,10 @@ export class AudioRecorder extends EventEmitter {
     }
 
     const duration = Date.now() - this.startTime;
-
-    this.cleanup();
-
-    if (this.recording) {
-      this.recording.stop();
-      this.recording = null;
-    }
+    this.cleanupTimers();
 
     const audioBuffer = Buffer.concat(this.chunks);
-    this.chunks = [];
+    this.cleanupRecording();
 
     if (!force) {
       if (duration < this.minDuration) {
@@ -149,7 +188,7 @@ export class AudioRecorder extends EventEmitter {
     return audioBuffer;
   }
 
-  private cleanup() {
+  private cleanupTimers() {
     if (this.timer) clearTimeout(this.timer);
     if (this.warningTimer4m) clearTimeout(this.warningTimer4m);
     if (this.warningTimer430m) clearTimeout(this.warningTimer430m);
@@ -158,13 +197,37 @@ export class AudioRecorder extends EventEmitter {
     this.warningTimer430m = null;
   }
 
+  private cleanupRecording() {
+    if (this.recording) {
+      try {
+        this.recording.stop();
+      } catch (e) {
+        logError("Error stopping recording", e);
+      }
+      this.recording = null;
+    }
+    this.chunks = [];
+  }
+
   private isSilent(buffer: Buffer): boolean {
-    if (buffer.length === 0) return true;
+    if (buffer.length <= 44) return true;
     
-    const int16Array = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
+    // Skip WAV header (44 bytes) if it exists
+    const dataOffset = buffer.subarray(0, 4).toString() === "RIFF" ? 44 : 0;
+    const samplesBuffer = buffer.subarray(dataOffset);
+    
+    if (samplesBuffer.length === 0) return true;
+
+    // Ensure we don't have an odd number of bytes for Int16
+    const length = Math.floor(samplesBuffer.length / 2) * 2;
+    const int16Array = new Int16Array(
+      samplesBuffer.buffer, 
+      samplesBuffer.byteOffset, 
+      length / 2
+    );
+    
     const sampleCount = int16Array.length;
-    
-    const step = 10;
+    const step = Math.max(1, Math.floor(sampleCount / 1000)); // Sample ~1000 points
     let sumSquares = 0;
     let countedSamples = 0;
     
@@ -175,8 +238,9 @@ export class AudioRecorder extends EventEmitter {
     }
     
     const rms = Math.sqrt(sumSquares / (countedSamples || 1));
-    const threshold = 100;
+    const threshold = 100; // Low threshold for silence
     
     return rms < threshold;
   }
 }
+

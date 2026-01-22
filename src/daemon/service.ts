@@ -47,6 +47,7 @@ export class DaemonService {
   private errorCount: number = 0;
   private lastError?: string;
   private startTime: number = Date.now();
+  private signalHandler: () => void;
 
   constructor() {
     this.recorder = new AudioRecorder();
@@ -63,7 +64,17 @@ export class DaemonService {
     this.transcriptionCountToday = stats.today;
     this.transcriptionCountTotal = stats.total;
 
+    this.signalHandler = () => {
+      logger.info("Received SIGUSR1 signal, toggling recording");
+      this.handleTrigger();
+    };
+
     this.setupListeners();
+    this.setupSignalHandlers();
+  }
+
+  private setupSignalHandlers() {
+    process.on("SIGUSR1", this.signalHandler);
   }
 
   private updateState() {
@@ -112,6 +123,7 @@ export class DaemonService {
 
     this.recorder.on("stop", (audioBuffer: Buffer, duration: number) => {
       this.setStatus("processing");
+      notify("Recording Stopped", "Processing transcription...", "info");
       this.processAudio(audioBuffer, duration);
     });
 
@@ -131,6 +143,9 @@ export class DaemonService {
       if (code === "NO_MICROPHONE") {
         title = "Microphone Error";
         message = formatUserError(ErrorTemplates.AUDIO.NO_MICROPHONE);
+      } else if (code === "AUDIO_BACKEND_MISSING") {
+        title = "System Error";
+        message = formatUserError(ErrorTemplates.AUDIO.AUDIO_BACKEND_MISSING);
       } else if (code === "PERMISSION_DENIED") {
         title = "Microphone Error";
         message = formatUserError(ErrorTemplates.AUDIO.PERMISSION_DENIED);
@@ -170,6 +185,7 @@ export class DaemonService {
   public stop() {
     this.hotkeyListener.stop();
     this.recorder.stop(true);
+    process.off("SIGUSR1", this.signalHandler);
     try {
       unlinkSync(this.pidFile);
       unlinkSync(this.stateFile);
@@ -196,8 +212,6 @@ export class DaemonService {
   }
 
   private async processAudio(audioBuffer: Buffer, duration: number) {
-    notify("Processing", "Transcribing audio...", "info");
-    
     try {
       const config = loadConfig();
       const language = config.transcription.language;

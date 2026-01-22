@@ -42,26 +42,36 @@ vi.mock('node-record-lpcm16', () => ({
   record: mocks.mockRecord
 }));
 
+vi.mock('node:child_process', () => ({
+  execSync: vi.fn(),
+}));
+
 import { AudioRecorder } from '../../src/audio/recorder';
 import { record } from 'node-record-lpcm16';
+import { execSync } from 'node:child_process';
 
 describe('AudioRecorder', () => {
   let recorder: AudioRecorder;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (execSync as any).mockReturnValue(Buffer.from('arecord version 1.2.4'));
     recorder = new AudioRecorder();
     mocks.mockStream.removeAllListeners();
   });
 
   it('should start recording successfully', async () => {
-    await recorder.start();
+    const startPromise = recorder.start();
+    mocks.mockStream.emit('data', Buffer.from('data'));
+    await startPromise;
     expect(record).toHaveBeenCalled();
     expect(recorder.isRecording()).toBe(true);
   });
 
   it('should throw error if already recording', async () => {
-    await recorder.start();
+    const startPromise = recorder.start();
+    mocks.mockStream.emit('data', Buffer.from('data'));
+    await startPromise;
     let error: Error | undefined;
     try {
         await recorder.start();
@@ -73,7 +83,9 @@ describe('AudioRecorder', () => {
   });
 
   it('should stop recording and return audio buffer', async () => {
-    await recorder.start();
+    const startPromise = recorder.start();
+    mocks.mockStream.emit('data', Buffer.from('data'));
+    await startPromise;
     
     mocks.mockStream.emit('data', Buffer.from('chunk1'));
     mocks.mockStream.emit('data', Buffer.from('chunk2'));
@@ -89,14 +101,17 @@ describe('AudioRecorder', () => {
     expect(mocks.mockStop).toHaveBeenCalled();
     expect(recorder.isRecording()).toBe(false);
     expect(buffer).not.toBeNull();
-    expect(buffer?.toString()).toBe('chunk1chunk2');
+    expect(buffer?.toString()).toContain('chunk1chunk2');
   });
 
+
   it('should return null if recording is too short', async () => {
-    await recorder.start();
+    const startPromise = recorder.start();
+    mocks.mockStream.emit('data', Buffer.from('data'));
+    await startPromise;
     
     const realDateNow = Date.now;
-    const startTime = realDateNow();
+    const startTime = Date.now();
     Date.now = () => startTime + 100;
 
     recorder.on('error', () => {});
@@ -109,7 +124,9 @@ describe('AudioRecorder', () => {
   });
 
   it('should detect silence', async () => {
-    await recorder.start();
+    const startPromise = recorder.start();
+    mocks.mockStream.emit('data', Buffer.alloc(4));
+    await startPromise;
     
     const silentBuffer = Buffer.alloc(1000); 
     mocks.mockStream.emit('data', silentBuffer);
@@ -128,5 +145,20 @@ describe('AudioRecorder', () => {
     Date.now = realDateNow;
 
     expect(warningMsg).toBe('No audio detected');
+  });
+
+  it('should throw error if arecord is missing', async () => {
+    (execSync as any).mockImplementation(() => {
+        throw new Error('command not found');
+    });
+    
+    let error: any;
+    try {
+        await recorder.start();
+    } catch (e) {
+        error = e;
+    }
+    expect(error).toBeDefined();
+    expect(error.code).toBe('AUDIO_BACKEND_MISSING');
   });
 });

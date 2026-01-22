@@ -23,6 +23,7 @@ export type ErrorCode =
   | "FILE_PERMISSIONS"
   | "CORRUPTED"
   | "WRITE_FAILED"
+  | "AUDIO_BACKEND_MISSING"
   | "UNKNOWN_ERROR";
 
 export class AppError extends Error {
