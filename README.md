@@ -45,32 +45,65 @@ sudo usermod -aG audio,input $USER
 ```
 *Note: You must log out and back in for these changes to take effect.*
 
-## Getting Started
+## Installation
 
-To install dependencies:
+Since this is a private project, you can install and run it locally using the following methods.
+
+### 1. Using Bun (Recommended)
+
+Clone the repository and install dependencies using [Bun](https://bun.sh):
 
 ```bash
+git clone https://github.com/snehit/voice-cli.git
+cd voice-cli
 bun install
 ```
 
-To run:
-
+To run the daemon:
 ```bash
 bun run index.ts
 ```
 
-## Installation
+### 2. Using NPM
 
-To install as a systemd user service:
+If you prefer using Node.js and NPM:
+
+```bash
+git clone https://github.com/snehit/voice-cli.git
+cd voice-cli
+npm install
+```
+
+To run the daemon:
+```bash
+npm start # or node index.ts (requires ts-node/esm or similar)
+```
+*Note: Using Bun is highly recommended for performance.*
+
+### 3. Using NPX
+
+You can run the project directly without cloning if the repository is accessible:
+
+```bash
+npx git+https://github.com/snehit/voice-cli.git
+```
+
+---
+
+## System-wide Installation (Daemon Setup)
+
+For a seamless "transcribe-anywhere" experience, you should install `voice-cli` as a systemd user service. This ensures the daemon starts automatically on login and runs in the background.
 
 ```bash
 bun run index.ts install
 ```
 
-This will create a systemd service, enable it to start on boot, and start it immediately.
+This command will:
+1. Create a systemd user service file at `~/.config/systemd/user/voice-cli.service`.
+2. Enable the service to start on boot.
+3. Start the service immediately.
 
-To uninstall:
-
+To uninstall the service:
 ```bash
 bun run index.ts uninstall
 ```
