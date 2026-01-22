@@ -8,7 +8,7 @@ export const ErrorTemplates = {
   API: {
     GROQ_INVALID_KEY: {
       message: "Groq API key is invalid or missing.",
-      action: "Please check your Groq API key in ~/.config/voice-cli/config.json. It should start with 'gsk_'."
+      action: "Please check your Groq API key in ~/.config/voice-cli/config.json. It should start with 'gsk_'.\n\nYou can get a key at: https://console.groq.com/keys"
     },
     DEEPGRAM_INVALID_KEY: {
       message: "Deepgram API key is invalid or missing.",
