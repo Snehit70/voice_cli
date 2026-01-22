@@ -176,4 +176,19 @@ journalctl --user -u voice-cli -f
 #### 4. Application Logs
 In addition to systemd logs, `voice-cli` maintains its own structured logs in `~/.config/voice-cli/logs/`. These contain detailed information about transcriptions and internal errors.
 
+### Transcription History
+
+All successful transcriptions are stored in `~/.config/voice-cli/history.json`. You can view or clear the history using the CLI:
+
+```bash
+# List last 10 transcriptions
+bun run index.ts history list
+
+# List last 20 transcriptions
+bun run index.ts history list -n 20
+
+# Clear history
+bun run index.ts history clear
+```
+
 This project was created using `bun init` in bun v1.3.3. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.

@@ -10,6 +10,7 @@ import { notify } from "../output/notification";
 import { logger, logError } from "../utils/logger";
 import { loadConfig } from "../config/loader";
 import { loadStats, incrementTranscriptionCount } from "../utils/stats";
+import { appendHistory } from "../utils/history";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -241,6 +242,15 @@ export class DaemonService {
       const stats = incrementTranscriptionCount();
       this.transcriptionCountToday = stats.today;
       this.transcriptionCountTotal = stats.total;
+
+      const engineUsed = groqText && deepgramText ? "groq+deepgram" : (groqText ? "groq" : "deepgram");
+      appendHistory({
+        timestamp: new Date().toISOString(),
+        text: finalText,
+        duration,
+        engine: engineUsed,
+        processingTime
+      });
 
       notify("Success", "Transcription copied to clipboard", "success");
       

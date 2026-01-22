@@ -310,7 +310,7 @@ interface DaemonState {
 - [x] Check clipboard access (test write/read)
 - [x] Display last error (if any)
 - [x] Display transcription count (today/total)
-- [ ] Format health output (colored, user-friendly)
+- [x] Format health output (colored, user-friendly)
 
 ### Phase 15: History Management (Priority: High)
 - [ ] Implement history storage (`~/.config/voice-cli/history.json`)

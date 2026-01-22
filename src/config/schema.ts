@@ -87,6 +87,7 @@ const defaultBehavior = {
 
 const defaultPaths = {
   logs: "~/.config/voice-cli/logs/",
+  history: "~/.config/voice-cli/history.json",
 };
 
 const defaultTranscription = {
@@ -123,6 +124,7 @@ export const BehaviorSchema = z.object({
 
 export const PathsSchema = z.object({
   logs: z.string().default(defaultPaths.logs),
+  history: z.string().default("~/.config/voice-cli/history.json"),
 });
 
 export const TranscriptionSchema = z.object({

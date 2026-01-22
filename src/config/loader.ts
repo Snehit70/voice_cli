@@ -75,6 +75,7 @@ export const loadConfig = (configPath: string = DEFAULT_CONFIG_FILE): Config => 
   // Post-processing: Resolve paths
   const config = result.data;
   config.paths.logs = resolvePath(config.paths.logs);
+  config.paths.history = resolvePath(config.paths.history);
 
   return config;
 };

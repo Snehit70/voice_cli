@@ -10,6 +10,7 @@ import { loadStats } from "../utils/stats";
 import { boostCommand } from "./boost";
 import { healthCommand } from "./health";
 import { errorsCommand } from "./errors";
+import { historyCommand } from "./history";
 import * as colors from "yoctocolors";
 
 const program = new Command();
@@ -288,5 +289,6 @@ program
 program.addCommand(boostCommand);
 program.addCommand(healthCommand);
 program.addCommand(errorsCommand);
+program.addCommand(historyCommand);
 
 export { program };
