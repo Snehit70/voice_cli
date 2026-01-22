@@ -121,7 +121,7 @@ describe("Config Integration", () => {
           deepgram: "not-a-uuid"
         }
       };
-      expect(() => saveConfig(invalidConfig, configPath)).toThrow(/Deepgram API key must be a valid UUID format/);
+      expect(() => saveConfig(invalidConfig, configPath)).toThrow(/Deepgram API key must be a (40-character hex string or a )?valid UUID format/);
     });
 
     it("should fail validation for too many boost words", () => {

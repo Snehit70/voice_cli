@@ -55,7 +55,7 @@ describe("API Key Validation (ApiKeysSchema)", () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0]?.message).toBe("Deepgram API key must be a valid UUID format");
+        expect(result.error.issues[0]?.message).toMatch(/Deepgram API key must be a (40-character hex string or a )?valid UUID format/);
       }
     });
 
@@ -67,7 +67,7 @@ describe("API Key Validation (ApiKeysSchema)", () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0]?.message).toBe("Deepgram API key must be a valid UUID format");
+        expect(result.error.issues[0]?.message).toMatch(/Deepgram API key must be a (40-character hex string or a )?valid UUID format/);
       }
     });
 

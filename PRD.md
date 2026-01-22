@@ -418,7 +418,7 @@ interface DaemonState {
 - [x] Document CLI commands (all available commands)
 - [x] Document command options and flags
 - [x] Document exit codes (for scripting)
-- [ ] Provide API usage examples
+- [x] Provide API usage examples
 
 ### Phase 26: Polish & Final Testing (Priority: High)
 - [ ] Run full test suite (unit + integration)
