@@ -59,7 +59,9 @@ export class AudioRecorder extends EventEmitter {
         let errorMessage = err instanceof Error ? err.message : String(err);
         
         if (stderrOutput) {
-          if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
+          if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
+            errorMessage = "No microphone detected. Please check if your microphone is connected and configured correctly.";
+          } else if (stderrOutput.includes("Permission denied") || stderrOutput.includes("audio open error")) {
             errorMessage = "Microphone permission denied. Please check your system settings and ensure your user is in the 'audio' group.";
           } else if (stderrOutput.includes("Device or resource busy")) {
             errorMessage = "Microphone is busy. Another application might be using it.";
