@@ -29,8 +29,9 @@ program
   .command("start")
   .description("Start the daemon")
   .option("--no-supervisor", "Run directly without supervisor")
+  .option("--daemon-worker", "Internal: Run as daemon worker process")
   .action((options) => {
-    if (existsSync(pidFile)) {
+    if (existsSync(pidFile) && !process.env.VOICE_CLI_DAEMON_WORKER) {
       try {
         const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
         try {

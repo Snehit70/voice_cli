@@ -27,7 +27,7 @@ export class DaemonSupervisor {
 
     logger.info("Supervisor: Spawning daemon process...");
     
-    const child = spawn("bun", ["run", this.scriptPath, "--daemon-worker"], {
+    const child = spawn("bun", ["run", this.scriptPath, "start", "--daemon-worker"], {
       stdio: "inherit",
       env: { ...process.env, VOICE_CLI_DAEMON_WORKER: "true" }
     });

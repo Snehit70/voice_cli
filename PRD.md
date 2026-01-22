@@ -370,9 +370,10 @@ interface DaemonState {
 - [x] Write integration test for Groq API (with test API key)
 - [x] Write integration test for Deepgram API (with test API key)
 - [x] Write integration test for LLM merger (with sample transcripts)
-- [ ] Write integration test for clipboard write (verify append mode)
-- [ ] Write integration test for daemon lifecycle (start/stop/restart)
+- [x] Write integration test for clipboard write (verify append mode)
+- [x] Write integration test for daemon lifecycle (start/stop/restart)
 - [ ] Write integration test for config file operations
+
 - [ ] Write integration test for history storage
 
 ### Phase 21: Documentation - README (Priority: High)
