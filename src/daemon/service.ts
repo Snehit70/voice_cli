@@ -54,6 +54,7 @@ export class DaemonService {
 	private lastError?: string;
 	private startTime: number = Date.now();
 	private signalHandler: () => void;
+	private keepAliveInterval?: NodeJS.Timeout;
 
 	constructor() {
 		this.recorder = new AudioRecorder();
@@ -186,10 +187,31 @@ export class DaemonService {
 			this.updateState();
 
 			const config = loadConfig();
-			await checkHotkeyConflict(config.behavior.hotkey);
+			const hotkeyDisabled =
+				config.behavior.hotkey.toLowerCase() === "disabled";
 
-			this.hotkeyListener.start();
-			logger.info("Daemon started. Waiting for hotkey...");
+			const isWayland =
+				!!process.env.WAYLAND_DISPLAY ||
+				process.env.XDG_SESSION_TYPE === "wayland";
+
+			if (!hotkeyDisabled) {
+				await checkHotkeyConflict(config.behavior.hotkey);
+				this.hotkeyListener.start();
+				logger.info("Daemon started. Waiting for hotkey...");
+
+				if (isWayland) {
+					logger.warn(
+						"Running on Wayland: Built-in hotkeys only work with XWayland windows. For reliable system-wide hotkeys, use compositor bindings or set hotkey to 'disabled'. See docs/WAYLAND.md for details.",
+					);
+				}
+			} else {
+				logger.info(
+					"Daemon started. Hotkey listener disabled (use compositor bindings or SIGUSR1).",
+				);
+				this.keepAliveInterval = setInterval(() => {
+					this.updateState();
+				}, 60000);
+			}
 		} catch (error) {
 			logError("Failed to start daemon", error);
 			throw error;
@@ -200,6 +222,9 @@ export class DaemonService {
 		this.hotkeyListener.stop();
 		this.recorder.stop(true);
 		process.off("SIGUSR1", this.signalHandler);
+		if (this.keepAliveInterval) {
+			clearInterval(this.keepAliveInterval);
+		}
 		try {
 			unlinkSync(this.pidFile);
 			unlinkSync(this.stateFile);

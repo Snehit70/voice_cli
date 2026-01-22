@@ -103,7 +103,7 @@ Controls the core functionality and user interaction of the daemon.
 
 | Option | Type | Default | Description | Validation Rules |
 | :--- | :--- | :--- | :--- | :--- |
-| `hotkey` | String | `"Right Control"` | Global hotkey to trigger recording. | Supports `Modifier+Key` format. See **[Hotkey Troubleshooting](TROUBLESHOOTING.md#global-hotkey-issues)** for Linux/Wayland issues. |
+| `hotkey` | String | `"Right Control"` | Global hotkey to trigger recording. Set to `"disabled"` to disable the built-in listener (useful for Wayland users using compositor bindings). | Supports `Modifier+Key` format or `"disabled"`. See **[Hotkey Troubleshooting](TROUBLESHOOTING.md#global-hotkey-issues)** for Linux/Wayland issues. |
 | `toggleMode` | Boolean | `true` | If `true`, press once to start and again to stop. If `false`, recording duration is fixed. | N/A |
 | `notifications` | Boolean | `true` | Enable/disable desktop notifications for recording status. | N/A |
 | `audioDevice` | String | Optional | Specify a custom ALSA audio device name (e.g., `"hw:0,0"`). See **[Audio Device Selection](AUDIO_DEVICES.md)** for details. | N/A |
@@ -117,8 +117,9 @@ Controls the core functionality and user interaction of the daemon.
 | `maxDuration` | Number | `300` | Maximum recording duration in seconds (5 minutes). | Max: `300` |
 
 #### Hotkey Format
-The `hotkey` option supports both single keys and combinations using the `+` separator.
-- **Examples**: `"Right Control"`, `"Ctrl+Space"`, `"Alt+Shift+V"`, `"F10"`.
+The `hotkey` option supports both single keys and combinations using the `+` separator, or the special value `"disabled"`.
+- **Examples**: `"Right Control"`, `"Ctrl+Space"`, `"Alt+Shift+V"`, `"F10"`, `"disabled"`.
+- **Special Value**: `"disabled"` - Disables the built-in hotkey listener. Useful on Wayland when using native compositor bindings. See **[Wayland Support Guide](WAYLAND.md)** for details.
 - **Supported Modifiers**:
   - `Ctrl`, `Control` (maps to `LEFT CTRL` or `RIGHT CTRL`)
   - `Alt` (maps to `LEFT ALT` or `RIGHT ALT`)

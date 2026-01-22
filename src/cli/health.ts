@@ -17,6 +17,7 @@ export const healthCommand = new Command("health")
 		console.log(`${colors.cyan("=========================")}\n`);
 
 		let allOk = true;
+		let config: any;
 
 		// 1. Environment Check
 		console.log(colors.bold("--- Environment ---"));
@@ -53,7 +54,6 @@ export const healthCommand = new Command("health")
 
 		// 2. Configuration Check
 		console.log(`\n${colors.bold("--- Configuration ---")}`);
-		let config: any;
 		try {
 			config = loadConfig();
 			console.log(
@@ -75,6 +75,29 @@ export const healthCommand = new Command("health")
 				colors.red((e as Error).message),
 			);
 			allOk = false;
+		}
+
+		if (isWayland && config) {
+			const hotkeyDisabled =
+				config.behavior?.hotkey?.toLowerCase() === "disabled";
+			if (!hotkeyDisabled) {
+				console.log(
+					`${colors.yellow("⚠️")}  ${colors.bold("Wayland Hotkey Limitation:")}`,
+				);
+				console.log(
+					`${colors.dim("   Built-in hotkeys only work with XWayland windows.")}`,
+				);
+				console.log(
+					`${colors.dim("   For reliable system-wide hotkeys, see:")} ${colors.cyan("docs/WAYLAND.md")}`,
+				);
+				console.log(
+					`${colors.dim("   Or set")} ${colors.bold('"hotkey": "disabled"')} ${colors.dim("in config and use compositor bindings.")}`,
+				);
+			} else {
+				console.log(
+					`${colors.green("✅")} Hotkey listener disabled (using compositor bindings)`,
+				);
+			}
 		}
 
 		// 3. API Connectivity Check

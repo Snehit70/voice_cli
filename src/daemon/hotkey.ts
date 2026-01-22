@@ -19,6 +19,11 @@ export class HotkeyListener extends EventEmitter {
 			const config = loadConfig();
 			const hotkey = config.behavior.hotkey.toUpperCase();
 
+			if (hotkey === "DISABLED") {
+				logger.info("Hotkey listener is disabled in configuration");
+				return;
+			}
+
 			const parts = hotkey.split("+").map((p) => p.trim());
 			const triggerKeyRaw = parts[parts.length - 1];
 			if (!triggerKeyRaw) {
