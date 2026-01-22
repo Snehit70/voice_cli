@@ -43,7 +43,10 @@ export class GroqClient {
         backoffs: [100, 200],
         timeout: 30000
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) {
+        throw new Error("Groq: Invalid API Key");
+      }
       logError("Groq transcription failed", error);
       throw error;
     } finally {

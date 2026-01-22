@@ -1,5 +1,6 @@
 import { AudioRecorder } from "../audio/recorder";
 import { HotkeyListener } from "./hotkey";
+import { checkHotkeyConflict } from "./conflict";
 import { GroqClient } from "../transcribe/groq";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
 import { TranscriptMerger } from "../transcribe/merger";
@@ -68,9 +69,13 @@ export class DaemonService {
     });
   }
 
-  public start() {
+  public async start() {
     try {
       writeFileSync(this.pidFile, process.pid.toString());
+      
+      const config = loadConfig();
+      await checkHotkeyConflict(config.behavior.hotkey);
+
       this.hotkeyListener.start();
       logger.info("Daemon started. Waiting for hotkey...");
     } catch (error) {
@@ -126,9 +131,15 @@ export class DaemonService {
       const deepgramText = deepgramResult.status === "fulfilled" ? deepgramResult.value : "";
 
       if (groqResult.status === "rejected") {
+        if (groqResult.reason?.message === "Groq: Invalid API Key") {
+          notify("Configuration Error", "Invalid Groq API Key. Check config.", "error");
+        }
         logError("Groq failed", groqResult.reason);
       }
       if (deepgramResult.status === "rejected") {
+        if (deepgramResult.reason?.message === "Deepgram: Invalid API Key") {
+          notify("Configuration Error", "Invalid Deepgram API Key. Check config.", "error");
+        }
         logError("Deepgram failed", deepgramResult.reason);
       }
 

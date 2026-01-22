@@ -36,7 +36,10 @@ export class DeepgramTranscriber {
         backoffs: [100, 200],
         timeout: 30000
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401 || error?.message?.includes("401")) {
+        throw new Error("Deepgram: Invalid API Key");
+      }
       logError("Deepgram Nova-3 failed, trying fallback", error);
       
       try {
@@ -60,7 +63,10 @@ export class DeepgramTranscriber {
           backoffs: [100, 200],
           timeout: 30000
         });
-      } catch (retryError) {
+      } catch (retryError: any) {
+        if (retryError?.status === 401 || retryError?.message?.includes("401")) {
+          throw new Error("Deepgram: Invalid API Key");
+        }
         logError("Deepgram fallback failed", retryError);
         throw retryError;
       }
