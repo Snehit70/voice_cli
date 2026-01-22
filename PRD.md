@@ -249,17 +249,17 @@ interface DaemonState {
 - [x] Add post-processing (remove hallucinations, fix grammar)
 - [x] Add fallback (if LLM fails, use Groq transcript only)
 - [x] Add error handling for LLM API failures
-- [ ] Test merge quality with sample transcripts
+- [x] Test merge quality with sample transcripts
 
 
-### Phase 9: Clipboard Integration (Priority: Critical)
-- [ ] Install clipboardy package for clipboard operations
-- [ ] Test with wl-clipboard fallback for Wayland compatibility
-- [ ] Implement clipboard write with APPEND mode (NEVER overwrite)
-- [ ] Add error handling for clipboard access denied
-- [ ] Add fallback (if clipboard fails, save to file)
-- [ ] Verify previous clipboard content is preserved
-- [ ] Document platform-specific clipboard behavior in README
+### Phase 9: Clipboard Integration (Priority: Critical) ✅ COMPLETED
+- [x] Install clipboardy package for clipboard operations
+- [x] Test with wl-clipboard fallback for Wayland compatibility
+- [x] Implement clipboard write with APPEND mode (NEVER overwrite)
+- [x] Add error handling for clipboard access denied
+- [x] Add fallback (if clipboard fails, save to file)
+- [x] Verify previous clipboard content is preserved
+- [x] Document platform-specific clipboard behavior in README
 
 ### Phase 10: Desktop Notifications (Priority: High)
 - [ ] Install notification library (e.g., `node-notifier`)
@@ -515,15 +515,15 @@ For v1.0, performance optimization is deferred to v2.0:
 - [ ] Audio recording works (0.6s min, 5min max with warnings)
 - [ ] Dual STT transcription works (Groq + Deepgram in parallel)
 - [ ] LLM merger produces high-quality transcriptions
-- [ ] Transcription copied to clipboard (APPEND mode, never overwrite)
+- [x] Transcription copied to clipboard (APPEND mode, never overwrite)
 - [ ] Desktop notifications work (recording start/stop, transcription ready, errors)
 - [ ] CLI commands work (config, history, health, daemon start/stop/status)
 - [ ] Error handling is robust (user-friendly messages, proper logging)
-- [ ] Tests pass with 80%+ coverage
+- [x] Tests pass with 80%+ coverage
 - [ ] Documentation is complete (README, config reference, troubleshooting, architecture, API)
 - [ ] Works on Hyprland (Wayland) - primary target
 - [ ] Works on other Linux distros (Ubuntu, Fedora, Arch)
-- [ ] No clipboard overwrites (critical requirement verified)
+- [x] No clipboard overwrites (critical requirement verified)
 - [ ] Daemon auto-restarts on crash (max 3 in 5 minutes)
 - [ ] All validation rules enforced (API keys, boost words, audio, hotkey)
 
