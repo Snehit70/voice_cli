@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { record, type Recording } from "node-record-lpcm16";
 import { logError, logger } from "../utils/logger";
 import { loadConfig } from "../config/loader";
+import { AppError } from "../utils/errors";
 
 export class AudioRecorder extends EventEmitter {
   private recording: Recording | null = null;
@@ -31,7 +32,7 @@ export class AudioRecorder extends EventEmitter {
 
   public async start(): Promise<void> {
     if (this.isRecording()) {
-      throw new Error("Already recording");
+      throw new AppError("ALREADY_RECORDING", "Already recording");
     }
 
     this.chunks = [];
@@ -65,7 +66,7 @@ export class AudioRecorder extends EventEmitter {
 
       stream.on("error", (err: unknown) => {
         let errorMessage = err instanceof Error ? err.message : String(err);
-        let errorCode: string | undefined = undefined;
+        let errorCode: any = "UNKNOWN_ERROR";
         
         if (stderrOutput) {
           if (stderrOutput.includes("No such file or directory") || stderrOutput.includes("No such device")) {
@@ -82,10 +83,7 @@ export class AudioRecorder extends EventEmitter {
           }
         }
 
-        const enhancedError = new Error(errorMessage);
-        if (errorCode) {
-          (enhancedError as any).code = errorCode;
-        }
+        const enhancedError = new AppError(errorCode, errorMessage, { stderr: stderrOutput });
         logError("Audio stream error", enhancedError, { stderr: stderrOutput });
         this.emit("error", enhancedError);
         this.stop(true);
@@ -136,13 +134,13 @@ export class AudioRecorder extends EventEmitter {
     if (!force) {
       if (duration < this.minDuration) {
         logger.warn(`Recording too short: ${duration}ms`);
-        this.emit("error", new Error("Recording too short"));
+        this.emit("error", new AppError("RECORDING_TOO_SHORT", "Recording too short"));
         return null;
       }
 
       if (this.isSilent(audioBuffer)) {
         logger.warn("Silent audio detected");
-        this.emit("warning", "No audio detected");
+        this.emit("error", new AppError("SILENT_AUDIO", "No audio detected"));
       }
     }
 

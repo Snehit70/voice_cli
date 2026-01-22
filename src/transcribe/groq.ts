@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/loader";
 import { logError, logger } from "../utils/logger";
+import { TranscriptionError } from "../utils/errors";
 
 export class GroqClient {
   private client: Groq;
@@ -33,7 +34,7 @@ export class GroqClient {
       });
     } catch (error: any) {
       if (error?.status === 401) {
-        throw new Error("Groq: Invalid API Key");
+        throw new TranscriptionError("Groq", "GROQ_INVALID_KEY", "Groq: Invalid API Key");
       }
       logError("Groq connectivity check failed", error, { operation: "checkConnection" });
       throw error;
@@ -83,13 +84,13 @@ export class GroqClient {
       });
     } catch (error: any) {
       if (error?.status === 401) {
-        throw new Error("Groq: Invalid API Key");
+        throw new TranscriptionError("Groq", "GROQ_INVALID_KEY", "Groq: Invalid API Key");
       }
       if (error?.status === 429) {
-        throw new Error("Groq: Rate limit exceeded. Please wait a moment before trying again.");
+        throw new TranscriptionError("Groq", "RATE_LIMIT_EXCEEDED", "Groq: Rate limit exceeded");
       }
       if (error?.message?.includes("timed out")) {
-        throw new Error("Groq: Request timed out");
+        throw new TranscriptionError("Groq", "TIMEOUT", "Groq: Request timed out");
       }
       logError("Groq transcription failed", error, { 
         language, 

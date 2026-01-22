@@ -2,6 +2,7 @@ import { createClient, type DeepgramClient } from "@deepgram/sdk";
 import { loadConfig } from "../config/loader";
 import { logger, logError } from "../utils/logger";
 import { withRetry } from "../utils/retry";
+import { TranscriptionError } from "../utils/errors";
 
 export class DeepgramTranscriber {
   private client: DeepgramClient;
@@ -33,7 +34,7 @@ export class DeepgramTranscriber {
       });
     } catch (error: any) {
       if (error?.status === 401 || error?.message?.includes("401")) {
-        throw new Error("Deepgram: Invalid API Key");
+        throw new TranscriptionError("Deepgram", "DEEPGRAM_INVALID_KEY", "Deepgram: Invalid API Key");
       }
       logError("Deepgram connectivity check failed", error, { operation: "checkConnection" });
       throw error;
@@ -80,10 +81,10 @@ export class DeepgramTranscriber {
       });
     } catch (error: any) {
       if (error?.status === 401 || error?.message?.includes("401")) {
-        throw new Error("Deepgram: Invalid API Key");
+        throw new TranscriptionError("Deepgram", "DEEPGRAM_INVALID_KEY", "Deepgram: Invalid API Key");
       }
       if (error?.status === 429 || error?.message?.includes("429")) {
-        throw new Error("Deepgram: Rate limit exceeded. Please wait a moment before trying again.");
+        throw new TranscriptionError("Deepgram", "RATE_LIMIT_EXCEEDED", "Deepgram: Rate limit exceeded");
       }
       logError("Deepgram Nova-3 failed, trying fallback", error, { 
         language, 
@@ -126,13 +127,13 @@ export class DeepgramTranscriber {
         });
       } catch (retryError: any) {
         if (retryError?.status === 401 || retryError?.message?.includes("401")) {
-          throw new Error("Deepgram: Invalid API Key");
+          throw new TranscriptionError("Deepgram", "DEEPGRAM_INVALID_KEY", "Deepgram: Invalid API Key");
         }
         if (retryError?.status === 429 || retryError?.message?.includes("429")) {
-          throw new Error("Deepgram: Rate limit exceeded. Please wait a moment before trying again.");
+          throw new TranscriptionError("Deepgram", "RATE_LIMIT_EXCEEDED", "Deepgram: Rate limit exceeded");
         }
         if (retryError?.message?.includes("timed out")) {
-          throw new Error("Deepgram: Request timed out");
+          throw new TranscriptionError("Deepgram", "TIMEOUT", "Deepgram: Request timed out");
         }
         logError("Deepgram fallback failed", retryError, { 
           language, 

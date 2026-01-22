@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { ConfigSchema, type Config, type ConfigFile } from "./schema";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
+import { AppError } from "../utils/errors";
 
 export const DEFAULT_CONFIG_DIR = join(homedir(), ".config", "voice-cli");
 export const DEFAULT_CONFIG_FILE = join(DEFAULT_CONFIG_DIR, "config.json");
@@ -22,6 +23,7 @@ export const resolvePath = (path: string): string => {
  * Loads and validates the configuration.
  * Prioritizes config file, falls back to environment variables for API keys.
  * Handles permission checks and path resolution.
+ * @throws {AppError} if config is corrupted or validation fails
  */
 export const loadConfig = (configPath: string = DEFAULT_CONFIG_FILE): Config => {
   let fileConfig: unknown = {};
@@ -41,7 +43,7 @@ export const loadConfig = (configPath: string = DEFAULT_CONFIG_FILE): Config => 
       const content = readFileSync(configPath, "utf-8");
       fileConfig = JSON.parse(content);
     } catch (error) {
-      throw new Error(formatUserError(ErrorTemplates.CONFIG.CORRUPTED));
+      throw new AppError("CORRUPTED", formatUserError(ErrorTemplates.CONFIG.CORRUPTED));
     }
   }
 
@@ -70,7 +72,7 @@ export const loadConfig = (configPath: string = DEFAULT_CONFIG_FILE): Config => 
 
   if (!result.success) {
     const errorMessages = result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join("\n");
-    throw new Error(`Config validation failed:\n${errorMessages}`);
+    throw new AppError("VALIDATION_FAILED", `Config validation failed:\n${errorMessages}`);
   }
 
   // Post-processing: Resolve paths

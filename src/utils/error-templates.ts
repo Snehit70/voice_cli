@@ -70,11 +70,15 @@ export const ErrorTemplates = {
     },
     SILENT_AUDIO: {
       message: "No audio detected in the recording.",
-      action: "Check your microphone settings and ensure the correct input device is selected."
+      action: "1. Check your microphone settings and ensure the correct input device is selected.\n2. Ensure the microphone is not muted hardware-wise.\n3. Verify your user is in the 'audio' group."
+    },
+    CONVERSION_FAILED: {
+      message: "Failed to process audio file (conversion failed).",
+      action: "1. Ensure FFmpeg is installed and accessible in your system PATH.\n2. Check if your system has enough disk space in /tmp."
     },
     FFMPEG_FAILURE: {
-      message: "Failed to process audio file.",
-      action: "Ensure FFmpeg is installed and accessible in your system PATH."
+      message: "Audio processing failed (FFmpeg).",
+      action: "Ensure FFmpeg is installed: 'sudo apt install ffmpeg' or 'sudo pacman -S ffmpeg'."
     }
   },
 

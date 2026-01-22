@@ -2,6 +2,8 @@ import { writeFileSync, mkdirSync, existsSync, chmodSync } from "node:fs";
 import { dirname } from "node:path";
 import { ConfigFileSchema, type ConfigFile } from "./schema";
 import { resolvePath, DEFAULT_CONFIG_FILE } from "./loader";
+import { AppError } from "../utils/errors";
+import { ErrorTemplates, formatUserError } from "../utils/error-templates";
 
 /**
  * Saves the configuration to disk.
@@ -17,7 +19,7 @@ export const saveConfig = (config: ConfigFile, path: string = DEFAULT_CONFIG_FIL
   
   if (!result.success) {
     const errorMessages = result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join("\n");
-    throw new Error(`Config validation failed:\n${errorMessages}`);
+    throw new AppError("VALIDATION_FAILED", `Config validation failed:\n${errorMessages}`);
   }
   
   const dataToWrite = result.data;
@@ -28,7 +30,7 @@ export const saveConfig = (config: ConfigFile, path: string = DEFAULT_CONFIG_FIL
     try {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
     } catch (error) {
-      throw new Error(`Failed to create config directory: ${(error as Error).message}`);
+      throw new AppError("WRITE_FAILED", formatUserError(ErrorTemplates.CONFIG.WRITE_FAILED), { originalError: error });
     }
   }
   
@@ -37,6 +39,6 @@ export const saveConfig = (config: ConfigFile, path: string = DEFAULT_CONFIG_FIL
     
     chmodSync(resolvedPath, 0o600);
   } catch (error) {
-    throw new Error(`Failed to write config file: ${(error as Error).message}`);
+    throw new AppError("WRITE_FAILED", formatUserError(ErrorTemplates.CONFIG.WRITE_FAILED), { originalError: error });
   }
 };

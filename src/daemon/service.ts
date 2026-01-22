@@ -15,6 +15,8 @@ import { appendHistory } from "../utils/history";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { AppError, TranscriptionError } from "../utils/errors";
+import type { ErrorCode } from "../utils/errors";
 
 type DaemonStatus = "idle" | "starting" | "recording" | "stopping" | "processing" | "error";
 
@@ -124,15 +126,23 @@ export class DaemonService {
       let title = "Error";
       let message = err.message;
 
-      if ((err as any).code === "NO_MICROPHONE") {
+      const code = (err as any).code as ErrorCode;
+      
+      if (code === "NO_MICROPHONE") {
         title = "Microphone Error";
         message = formatUserError(ErrorTemplates.AUDIO.NO_MICROPHONE);
-      } else if ((err as any).code === "PERMISSION_DENIED") {
+      } else if (code === "PERMISSION_DENIED") {
         title = "Microphone Error";
         message = formatUserError(ErrorTemplates.AUDIO.PERMISSION_DENIED);
-      } else if ((err as any).code === "DEVICE_BUSY") {
+      } else if (code === "DEVICE_BUSY") {
         title = "Microphone Error";
         message = formatUserError(ErrorTemplates.AUDIO.DEVICE_BUSY);
+      } else if (code === "RECORDING_TOO_SHORT") {
+        title = "Recording Error";
+        message = formatUserError(ErrorTemplates.AUDIO.RECORDING_TOO_SHORT);
+      } else if (code === "SILENT_AUDIO") {
+        title = "Recording Error";
+        message = formatUserError(ErrorTemplates.AUDIO.SILENT_AUDIO);
       } else if (message.toLowerCase().includes("permission denied") || message.toLowerCase().includes("microphone")) {
         title = "Microphone Error";
       }
@@ -214,13 +224,15 @@ export class DaemonService {
       const processingTime = Date.now() - startTime;
 
       const handleTranscriptionError = (err: any, failedService: string) => {
-        if (err?.message?.includes("Invalid API Key")) {
+        const code = err instanceof AppError ? err.code : undefined;
+
+        if (code === "GROQ_INVALID_KEY" || code === "DEEPGRAM_INVALID_KEY" || err?.message?.includes("Invalid API Key")) {
           const template = failedService === "Groq" ? ErrorTemplates.API.GROQ_INVALID_KEY : ErrorTemplates.API.DEEPGRAM_INVALID_KEY;
           notify("Configuration Error", formatUserError(template), "error");
-        } else if (err?.message?.includes("Rate limit exceeded")) {
+        } else if (code === "RATE_LIMIT_EXCEEDED" || err?.message?.includes("Rate limit exceeded")) {
           const template = ErrorTemplates.API.RATE_LIMIT_EXCEEDED(failedService);
           notify("Rate Limit", formatUserError(template), "error");
-        } else if (err?.message?.includes("timed out")) {
+        } else if (code === "TIMEOUT" || err?.message?.includes("timed out")) {
           logger.warn(`${failedService} API timed out`);
         } else {
           logError(`${failedService} failed`, err);
@@ -290,11 +302,18 @@ export class DaemonService {
       logError("Processing failed", error, { duration });
       
       let message = "Transcription failed. Check logs.";
-      if (error instanceof ClipboardAccessError) {
-        const template = ErrorTemplates.CLIPBOARD.ACCESS_DENIED;
-        message = formatUserError(template);
-      } else if (error?.message?.includes("timed out")) {
-        const template = ErrorTemplates.API.TIMEOUT("Both");
+      const code = error instanceof AppError ? error.code : undefined;
+
+      if (code === "ACCESS_DENIED" || error instanceof ClipboardAccessError) {
+        message = formatUserError(ErrorTemplates.CLIPBOARD.ACCESS_DENIED);
+      } else if (code === "APPEND_FAILED") {
+        message = formatUserError(ErrorTemplates.CLIPBOARD.APPEND_FAILED);
+      } else if (code === "TIMEOUT" || error?.message?.includes("timed out")) {
+        message = formatUserError(ErrorTemplates.API.TIMEOUT("Both"));
+      } else if (code === "BOTH_SERVICES_FAILED") {
+        message = formatUserError(ErrorTemplates.API.BOTH_SERVICES_FAILED);
+      } else if (code === "CONVERSION_FAILED" || code === "FFMPEG_FAILURE") {
+        const template = code === "FFMPEG_FAILURE" ? ErrorTemplates.AUDIO.FFMPEG_FAILURE : ErrorTemplates.AUDIO.CONVERSION_FAILED;
         message = formatUserError(template);
       }
       

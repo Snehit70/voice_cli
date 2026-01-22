@@ -6,10 +6,11 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { logger, logError } from "../utils/logger";
 import { loadConfig } from "../config/loader";
+import { AppError } from "../utils/errors";
 
-export class ClipboardAccessError extends Error {
-  constructor(message: string) {
-    super(message);
+export class ClipboardAccessError extends AppError {
+  constructor(message: string, context?: Record<string, any>) {
+    super("ACCESS_DENIED", message, context);
     this.name = "ClipboardAccessError";
   }
 }
@@ -54,10 +55,12 @@ export class ClipboardManager {
       } catch (error) {
         logger.error("Clipboard write failed, falling back to file");
         this.saveToFallbackFile(text);
-        throw new ClipboardAccessError("Failed to write to clipboard");
+        throw new ClipboardAccessError("Failed to write to clipboard", { error });
       }
     } catch (error) {
-      logError("Clipboard operation failed", error);
+      if (!(error instanceof ClipboardAccessError)) {
+        logError("Clipboard operation failed", error);
+      }
       throw error;
     }
   }
@@ -104,7 +107,7 @@ export class ClipboardManager {
       child.on("error", reject);
       child.on("close", (code: number) => {
         if (code === 0) resolve();
-        else reject(new Error(`wl-copy exited with code ${code}`));
+        else reject(new AppError("APPEND_FAILED", `wl-copy exited with code ${code}`));
       });
 
       child.stdin.write(text);

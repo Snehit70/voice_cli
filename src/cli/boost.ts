@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { loadConfig } from "../config/loader";
 import { saveConfig } from "../config/writer";
 import * as colors from "yoctocolors";
+import { ErrorTemplates, formatUserError } from "../utils/error-templates";
+import { AppError } from "../utils/errors";
 
 export const boostCommand = new Command("boost")
   .description("Manage boost words (custom vocabulary)")
@@ -47,7 +49,8 @@ boostCommand
       const updatedWords = [...currentWords, ...newWords];
       
       if (updatedWords.length > 450) {
-        console.error(colors.red(`Error: Cannot add ${newWords.length} words. Total would exceed 450 word limit.`));
+        const error = formatUserError(ErrorTemplates.VALIDATION.BOOST_WORDS_LIMIT);
+        console.error(colors.red(error));
         return;
       }
 
