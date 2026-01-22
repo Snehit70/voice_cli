@@ -1,7 +1,6 @@
 import { Command } from "commander";
 import { loadConfig, DEFAULT_CONFIG_FILE } from "../config/loader";
 import { saveConfig } from "../config/writer";
-import { ConfigFileSchema } from "../config/schema";
 import * as colors from "yoctocolors";
 import { existsSync } from "node:fs";
 import readlineSync from "readline-sync";
@@ -199,6 +198,14 @@ configCommand
 
       saveConfig(config);
       console.log(`${colors.green("✅")} Configuration initialized at ${DEFAULT_CONFIG_FILE}`);
+
+      console.log(colors.bold("\nNext Steps:"));
+      console.log(`  1. Install the systemd service:`);
+      console.log(`     ${colors.cyan("bun run index.ts install")}`);
+      console.log(`  2. Select your microphone device:`);
+      console.log(`     ${colors.cyan("bun run index.ts list-mics")}`);
+      console.log(`  3. Configure your hotkey (default: Right Control):`);
+      console.log(`     ${colors.cyan("bun run index.ts config bind")}`);
     } catch (error) {
       console.error(colors.red("Failed to initialize config:"), (error as Error).message);
     }

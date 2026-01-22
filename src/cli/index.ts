@@ -206,17 +206,46 @@ WantedBy=default.target
       console.log(`Starting ${serviceName} service...`);
       execSync(`systemctl --user start ${serviceName}`);
 
-      console.log("------------------------------------------------");
-      console.log("Installation complete!");
+      const configPath = join(configDir, "config.json");
+      const configExists = existsSync(configPath);
+
+      console.log("\n" + colors.green("------------------------------------------------"));
+      console.log(colors.bold("  Installation complete! 🚀"));
+      
+      let statusStr = colors.red("Inactive");
       try {
         const isActive = execSync(`systemctl --user is-active ${serviceName}`).toString().trim();
-        console.log(`Status: ${isActive}`);
+        if (isActive === "active") statusStr = colors.green("Active");
+        else if (isActive === "activating") statusStr = colors.yellow("Activating");
       } catch (e) {
-        console.log("Status: inactive (but installed)");
       }
-      console.log(`Use 'systemctl --user status ${serviceName}' to check details.`);
-      console.log(`Use 'journalctl --user -u ${serviceName} -f' to see logs.`);
-      console.log("------------------------------------------------");
+      console.log(`  Status: ${statusStr}`);
+      console.log(colors.green("------------------------------------------------"));
+
+      console.log(colors.bold("\nNext Steps:"));
+      
+      if (!configExists) {
+        console.log(`  1. ${colors.yellow("CRITICAL:")} Initialize your API keys:`);
+        console.log(`     ${colors.cyan("bun run index.ts config init")}`);
+      } else {
+        console.log(`  1. Verify your configuration:`);
+        console.log(`     ${colors.cyan("bun run index.ts config list")}`);
+      }
+
+      console.log(`  2. Select your microphone device:`);
+      console.log(`     ${colors.cyan("bun run index.ts list-mics")}`);
+
+      console.log(`  3. Configure your hotkey (default: Right Control):`);
+      console.log(`     ${colors.cyan("bun run index.ts config bind")}`);
+
+      console.log(colors.bold("\nVerification:"));
+      console.log(`  - Check service status: ${colors.cyan(`systemctl --user status ${serviceName}`)}`);
+      console.log(`  - Follow live logs:     ${colors.cyan(`journalctl --user -u ${serviceName} -f`)}`);
+
+      console.log(colors.bold("\nFiles:"));
+      console.log(`  - Config: ${colors.dim(configPath)}`);
+      console.log(`  - Logs:   ${colors.dim(logsDir)}`);
+      console.log(colors.green("------------------------------------------------\n"));
     } catch (error) {
       console.error("Installation failed:", (error as Error).message);
       process.exit(1);
