@@ -95,6 +95,7 @@ npx git+https://github.com/snehit/voice-cli.git
 For a detailed guide, see [Usage Guide](docs/USAGE.md).
 For typical workflows and examples, see [Examples & Workflows](docs/EXAMPLES.md).
 For project structure and data flow, see [Architecture](docs/ARCHITECTURE.md).
+For programmatic use, see [Programmatic API](docs/API.md).
 For contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Quick Start

@@ -53,6 +53,8 @@ The transcription cycle follows a strictly orchestrated path (see [STT Flow Deta
 
 ## Feature Modules
 
+For details on using these modules programmatically, see the [Programmatic API Reference](API.md).
+
 ### 🎤 Audio Management (`src/audio/`)
 - **`recorder.ts`**: Handles the `arecord` process lifecycle and provides a stream-based interface for recording.
 - **`device-service.ts`**: Discovers and lists available ALSA input devices.
