@@ -29,7 +29,11 @@ vi.mock('../../src/utils/logger', () => ({
 vi.mock('../../src/config/loader', () => ({
   loadConfig: () => ({
     behavior: {
-      audioDevice: 'default'
+      audioDevice: 'default',
+      clipboard: {
+        minDuration: 0.6,
+        maxDuration: 300
+      }
     }
   })
 }));

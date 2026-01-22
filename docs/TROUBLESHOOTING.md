@@ -91,18 +91,38 @@ This guide covers common issues and their solutions for `voice-cli`.
 
 ## Global Hotkey Issues
 
-### Hotkey Not Detected
+### Hotkey Not Detected (General)
 - **Symptom**: Pressing the hotkey does nothing.
-- **Fix**:
+- **Fixes**:
   - **Permissions**: Ensure your user is in the `input` group: `sudo usermod -aG input $USER` (re-login required).
-  - **Wayland/XWayland**: Global hotkeys require XWayland. Ensure it is enabled in your compositor (e.g., Hyprland, Sway).
-  - **Conflicting Keys**: Ensure no other application is globally intercepting the same key.
+  - **Conflicting Keys**: Ensure no other application (like your window manager or Discord) is globally intercepting the same key.
+  - **Binary Permissions**: The underlying listener binary might lack execution permissions. Run:
+    ```bash
+    chmod +x ./node_modules/node-global-key-listener/bin/X11KeyServer
+    ```
+
+### Wayland vs X11 Issues
+`voice-cli` uses `node-global-key-listener`, which relies on the X11 XInput2 protocol. This has specific implications for Wayland users.
+
+#### Wayland (Hyprland, GNOME Wayland, KDE Wayland)
+- **Problem**: Global hotkeys may only work when an XWayland window is focused. They will **not** trigger while a native Wayland window is active.
+- **Workarounds**:
+  - **Focus XWayland**: Click on an XWayland-compatible application (like Discord or older apps) before using the hotkey.
+  - **Native Keybinds**: If `voice-cli` hotkeys are unreliable on your compositor, you can bind a key natively in your WM/DE to trigger the daemon via CLI:
+    - **Hyprland**: Add `bind = , code:105, exec, bun run /path/to/voice-cli/index.ts toggle` to your config.
+    - **GNOME**: Use Settings -> Keyboard -> Keyboard Shortcuts -> Custom Shortcuts.
+- **XWayland Requirement**: Ensure XWayland is enabled in your compositor settings.
+
+#### X11
+- **Problem**: The hotkey works but sometimes stops after a system update.
+- **Fix**: Reinstall dependencies and ensure `libx11-dev`, `libxtst-dev`, and `libxi-dev` are installed.
 
 ### Failed to Bind Hotkey
 - **Symptom**: "Failed to bind global hotkey" error on startup.
 - **Fix**:
   - Verify the hotkey name in `config.json` is correct (e.g., `Right Control`).
-  - Check for missing dependencies: `libx11-dev`, `libxtst-dev`, `libxi-dev`.
+  - Use `bun run index.ts config bind` to interactively set a valid key.
+  - Ensure the `DISPLAY` environment variable is set if running as a systemd service.
 
 ---
 

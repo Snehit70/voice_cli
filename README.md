@@ -231,7 +231,7 @@ For a comprehensive list of errors and solutions, see the **[Troubleshooting Gui
 
 | Issue | Resolution |
 |-------|------------|
-| **Hotkey not working** | Ensure user is in `input` group: `sudo usermod -aG input $USER` (re-login required). |
+| **Hotkey not working** | Ensure user is in `input` group and check Wayland/XWayland status. See [Troubleshooting: Global Hotkey Issues](docs/TROUBLESHOOTING.md#global-hotkey-issues). |
 | **No audio recorded** | Ensure user is in `audio` group. See [Audio Device Selection](docs/AUDIO_DEVICES.md). |
 | **API Errors** | Verify API keys in `config.json` (Groq starts with `gsk_`, Deepgram is a UUID). |
 | **Clipboard fail** | Install `wl-clipboard` (Wayland) or `xclip` (X11). |

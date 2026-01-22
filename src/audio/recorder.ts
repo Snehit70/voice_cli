@@ -10,13 +10,19 @@ export class AudioRecorder extends EventEmitter {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private warningTimer4m: ReturnType<typeof setTimeout> | null = null;
   private warningTimer430m: ReturnType<typeof setTimeout> | null = null;
-  private readonly MIN_DURATION = 600;
-  private readonly MAX_DURATION = 300000;
+  private minDuration: number = 600;
+  private maxDuration: number = 300000;
   private readonly WARNING_4M = 240000;
   private readonly WARNING_430M = 270000;
 
   constructor() {
     super();
+    try {
+      const config = loadConfig();
+      this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
+      this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
+    } catch (e) {
+    }
   }
 
   public isRecording(): boolean {
@@ -32,6 +38,8 @@ export class AudioRecorder extends EventEmitter {
     this.startTime = Date.now();
 
     const config = loadConfig();
+    this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
+    this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
 
     try {
       this.recording = record({
@@ -97,7 +105,7 @@ export class AudioRecorder extends EventEmitter {
         logger.warn("Recording limit reached (5m). Auto-stopping.");
         this.emit("warning", "Recording limit reached (5m). Stopping...");
         this.stop();
-      }, this.MAX_DURATION);
+      }, this.maxDuration);
 
       logger.info({ device: config.behavior.audioDevice }, "Recording started");
       this.emit("start");
@@ -126,7 +134,7 @@ export class AudioRecorder extends EventEmitter {
     this.chunks = [];
 
     if (!force) {
-      if (duration < this.MIN_DURATION) {
+      if (duration < this.minDuration) {
         logger.warn(`Recording too short: ${duration}ms`);
         this.emit("error", new Error("Recording too short"));
         return null;

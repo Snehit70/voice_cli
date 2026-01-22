@@ -394,16 +394,16 @@ interface DaemonState {
 - [x] Document boost words format and limits
 - [x] Document audio device selection
 - [x] Document language options (English only for v1.0)
-- [ ] Provide example config file with comments
+- [x] Provide example config file with comments
 
 ### Phase 23: Documentation - Troubleshooting Guide (Priority: Medium)
-- [ ] Document "Daemon won't start" (common causes and fixes)
-- [ ] Document "Hotkey not working" (Wayland vs X11 issues)
-- [ ] Document "No microphone detected" (permission issues)
-- [ ] Document "API key invalid" (how to verify keys)
-- [ ] Document "Clipboard not working" (Wayland clipboard issues)
-- [ ] Document "Transcription quality poor" (boost words, audio quality)
-- [ ] Document "Daemon crashes frequently" (check logs, report issue)
+- [x] Document "Daemon won't start" (common causes and fixes)
+- [x] Document "Hotkey not working" (Wayland vs X11 issues)
+- [x] Document "No microphone detected" (permission issues)
+- [x] Document "API key invalid" (how to verify keys)
+- [x] Document "Clipboard not working" (Wayland clipboard issues)
+- [x] Document "Transcription quality poor" (boost words, audio quality)
+- [x] Document "Daemon crashes frequently" (check logs, report issue)
 
 ### Phase 24: Documentation - Architecture (Priority: Low)
 - [ ] Document project structure (feature-based layout)
@@ -426,8 +426,8 @@ interface DaemonState {
 - [ ] Verify daemon auto-restart (crash recovery)
 - [ ] Verify all error messages are user-friendly
 - [ ] Document platform compatibility matrix in README (Wayland/X11, tested distros)
-- [ ] Add platform-specific troubleshooting guide
-- [ ] Document known issues and workarounds for different environments
+- [x] Add platform-specific troubleshooting guide
+- [x] Document known issues and workarounds for different environments
 - [ ] Fix any remaining bugs
 - [ ] Optimize performance (if time permits)
 

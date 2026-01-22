@@ -16,6 +16,10 @@ vi.mock("../../src/config/loader", () => ({
   loadConfig: vi.fn(() => ({
     behavior: {
       audioDevice: "default",
+      clipboard: {
+        minDuration: 0.6,
+        maxDuration: 300
+      }
     },
   })),
 }));
