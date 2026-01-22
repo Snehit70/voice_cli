@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { loadConfig } from "../config/loader";
 import { boostCommand } from "./boost";
+import { healthCommand } from "./health";
 
 const program = new Command();
 const configDir = join(homedir(), ".config", "voice-cli");
@@ -267,18 +268,6 @@ program
   });
 
 program.addCommand(boostCommand);
-
-program
-  .command("health")
-  .description("Check system health")
-  .action(() => {
-    console.log("Checking system health...");
-    try {
-      loadConfig();
-      console.log("✅ Config loaded");
-    } catch (e) {
-      console.log("❌ Config Error:", (e as Error).message);
-    }
-  });
+program.addCommand(healthCommand);
 
 export { program };
