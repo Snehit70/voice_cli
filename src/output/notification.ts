@@ -1,0 +1,33 @@
+import notifier from "node-notifier";
+import { logger } from "../utils/logger";
+import { loadConfig } from "../config/loader";
+
+export type NotificationType = "info" | "success" | "warning" | "error";
+
+export const notify = (title: string, message: string, type: NotificationType = "info") => {
+  try {
+    const config = loadConfig();
+    if (!config.behavior.notifications) {
+      return;
+    }
+
+    const iconMap: Record<NotificationType, string> = {
+      info: "dialog-information",
+      success: "emblem-default", 
+      warning: "dialog-warning",
+      error: "dialog-error",
+    };
+
+    notifier.notify({
+      title: `Voice CLI: ${title}`,
+      message,
+      icon: iconMap[type],
+      sound: type === "error",
+      wait: false,
+    });
+
+    logger.info({ title, message, type }, "Notification sent");
+  } catch (error) {
+    logger.error({ err: error }, "Failed to send notification");
+  }
+};

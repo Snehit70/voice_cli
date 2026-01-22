@@ -120,6 +120,7 @@ export const BehaviorSchema = z.object({
     minDuration: z.number().min(0.6).default(defaultBehavior.clipboard.minDuration),
     maxDuration: z.number().max(300).default(defaultBehavior.clipboard.maxDuration), // 5 minutes in seconds
   }).default(defaultBehavior.clipboard),
+  audioDevice: z.string().optional(),
 });
 
 export const PathsSchema = z.object({

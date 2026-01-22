@@ -188,8 +188,8 @@ interface DaemonState {
 - [x] Set proper file permissions (chmod 600 for config file)
 
 ### Phase 3: Audio Capture (Priority: Critical)
-- [ ] Install node-record-lpcm16 package for audio recording
-- [ ] If node-record-lpcm16 fails, try sox-audio or mic package as fallback
+- [x] Install node-record-lpcm16 package for audio recording
+- [x] If node-record-lpcm16 fails, try sox-audio or mic package as fallback
 - [ ] Implement microphone detection and listing
 - [ ] Implement audio recording start/stop
 - [ ] Add minimum recording length validation (0.6 seconds)
