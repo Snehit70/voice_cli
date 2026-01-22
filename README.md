@@ -1,5 +1,11 @@
 # voice-cli
 
+**Production-ready STT daemon for Linux with global hotkeys and clipboard history.**
+
+`voice-cli` is a high-performance speech-to-text daemon for Linux (Wayland/X11) that provides global transcription via Groq (Whisper V3) and Deepgram (Nova-3). It features low-latency parallel execution, automatic clipboard history appending, and systemd integration for a seamless "transcribe-anywhere" experience.
+
+## Getting Started
+
 To install dependencies:
 
 ```bash

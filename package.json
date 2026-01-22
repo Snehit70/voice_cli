@@ -1,5 +1,7 @@
 {
   "name": "voice-cli",
+  "version": "1.0.0",
+  "description": "Production-ready STT daemon for Linux with global hotkeys and clipboard history",
   "module": "index.ts",
   "type": "module",
   "private": true,
