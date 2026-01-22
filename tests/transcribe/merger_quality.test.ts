@@ -3,15 +3,16 @@ import { TranscriptMerger } from "../../src/transcribe/merger";
 import Groq from "groq-sdk";
 import testCases from "./samples/merger_test_cases.json";
 
+const mockGroqCreate = vi.fn();
 vi.mock("groq-sdk", () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      chat: {
+    default: class {
+      chat = {
         completions: {
-          create: vi.fn(),
+          create: mockGroqCreate,
         },
-      },
-    })),
+      };
+    },
   };
 });
 
@@ -27,23 +28,21 @@ vi.mock("../../src/utils/logger", () => ({
 
 describe("TranscriptMerger Quality Evaluation", () => {
   let merger: TranscriptMerger;
-  let mockGroq: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     merger = new TranscriptMerger();
-    mockGroq = (Groq as any).mock.results[0].value;
   });
 
   testCases.forEach((tc) => {
     it(`should merge: ${tc.name}`, async () => {
-      mockGroq.chat.completions.create.mockResolvedValue({
+      mockGroqCreate.mockResolvedValue({
         choices: [{ message: { content: tc.ideal } }],
       });
 
       const result = await merger.merge(tc.groq, tc.deepgram);
       
-      expect(mockGroq.chat.completions.create).toHaveBeenCalledWith(
+      expect(mockGroqCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: expect.arrayContaining([
             expect.objectContaining({
@@ -79,11 +78,11 @@ describe("TranscriptMerger Quality Evaluation", () => {
     const text = "Exactly the same text.";
     const result = await merger.merge(text, text);
     expect(result).toBe(text);
-    expect(mockGroq.chat.completions.create).not.toHaveBeenCalled();
+    expect(mockGroqCreate).not.toHaveBeenCalled();
   });
 
   it("should fallback to Deepgram on LLM error", async () => {
-    mockGroq.chat.completions.create.mockRejectedValue(new Error("Overloaded"));
+    mockGroqCreate.mockRejectedValue(new Error("Overloaded"));
     const result = await merger.merge("groq", "Deepgram.");
     expect(result).toBe("Deepgram.");
   });
