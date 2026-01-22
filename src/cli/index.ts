@@ -11,6 +11,7 @@ import { boostCommand } from "./boost";
 import { healthCommand } from "./health";
 import { errorsCommand } from "./errors";
 import { historyCommand } from "./history";
+import { logsCommand } from "./logs";
 import * as colors from "yoctocolors";
 
 const program = new Command();
@@ -296,5 +297,6 @@ program.addCommand(boostCommand);
 program.addCommand(healthCommand);
 program.addCommand(errorsCommand);
 program.addCommand(historyCommand);
+program.addCommand(logsCommand);
 
 export { program };
