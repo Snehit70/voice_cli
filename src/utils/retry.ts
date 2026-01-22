@@ -5,6 +5,7 @@ interface RetryOptions {
   backoffs?: number[];
   operationName?: string;
   timeout?: number;
+  shouldRetry?: (error: any) => boolean;
 }
 
 export async function withRetry<T>(
@@ -15,6 +16,7 @@ export async function withRetry<T>(
   const backoffs = options.backoffs ?? [100, 200];
   const opName = options.operationName ?? "Operation";
   const timeoutMs = options.timeout;
+  const shouldRetry = options.shouldRetry ?? (() => true);
   
   let lastError: any;
 
@@ -40,6 +42,11 @@ export async function withRetry<T>(
       return await operation();
     } catch (error) {
       lastError = error;
+      
+      if (!shouldRetry(error)) {
+        throw error;
+      }
+
       const attempt = i + 1;
       const totalAttempts = maxRetries + 1;
       

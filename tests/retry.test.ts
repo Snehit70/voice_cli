@@ -49,4 +49,26 @@ describe("withRetry", () => {
       expect(e.message).toContain("timed out");
     }
   });
+
+  it("should not retry if shouldRetry returns false", async () => {
+    let attempts = 0;
+    const operation = mock(async () => {
+      attempts++;
+      const error = new Error("fatal");
+      (error as any).fatal = true;
+      throw error;
+    });
+
+    try {
+      await withRetry(operation, { 
+        maxRetries: 2, 
+        backoffs: [1],
+        shouldRetry: (err) => !(err as any).fatal
+      });
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
+    
+    expect(attempts).toBe(1);
+  });
 });

@@ -134,6 +134,8 @@ export class DaemonService {
         const err = groqResult.reason;
         if (err?.message === "Groq: Invalid API Key") {
           notify("Configuration Error", "Invalid Groq API Key. Check config.", "error");
+        } else if (err?.message === "Groq: Rate limit exceeded") {
+          notify("Rate Limit", "Groq rate limit exceeded.", "error");
         } else if (err?.message?.includes("timed out")) {
           logError("Groq API timed out", err);
         } else {
@@ -144,6 +146,8 @@ export class DaemonService {
         const err = deepgramResult.reason;
         if (err?.message === "Deepgram: Invalid API Key") {
           notify("Configuration Error", "Invalid Deepgram API Key. Check config.", "error");
+        } else if (err?.message === "Deepgram: Rate limit exceeded") {
+          notify("Rate Limit", "Deepgram rate limit exceeded.", "error");
         } else if (err?.message?.includes("timed out")) {
           logError("Deepgram API timed out", err);
         } else {

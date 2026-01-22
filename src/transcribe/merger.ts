@@ -54,13 +54,21 @@ ${deepgramText}`,
         operationName: "LLM Merge",
         maxRetries: 2,
         backoffs: [100, 200],
-        timeout: 30000
+        timeout: 30000,
+        shouldRetry: (error: any) => {
+          const status = error?.status;
+          return status !== 401 && status !== 429;
+        }
       });
 
       const merged = completion.choices[0]?.message?.content?.trim();
       return merged || deepgramText;
-    } catch (error) {
-      logError("LLM merge failed", error);
+    } catch (error: any) {
+      if (error?.status === 429) {
+        logError("LLM merge skipped (Rate Limit)", error);
+      } else {
+        logError("LLM merge failed", error);
+      }
       return deepgramText;
     }
   }

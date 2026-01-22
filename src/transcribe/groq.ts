@@ -41,11 +41,18 @@ export class GroqClient {
         operationName: "Groq Transcription",
         maxRetries: 2,
         backoffs: [100, 200],
-        timeout: 30000
+        timeout: 30000,
+        shouldRetry: (error: any) => {
+          const status = error?.status;
+          return status !== 401 && status !== 429;
+        }
       });
     } catch (error: any) {
       if (error?.status === 401) {
         throw new Error("Groq: Invalid API Key");
+      }
+      if (error?.status === 429) {
+        throw new Error("Groq: Rate limit exceeded");
       }
       logError("Groq transcription failed", error);
       throw error;
