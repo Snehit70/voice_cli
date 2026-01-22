@@ -180,9 +180,9 @@ interface DaemonState {
 - [x] Implement config file reader (`~/.config/voice-cli/config.json`)
 - [x] Implement config file writer with validation
 - [x] Add API key format validation (Groq, Deepgram)
-- [ ] Add hotkey validation (valid key combinations)
+- [x] Add hotkey validation (valid key combinations)
 - [x] Add boost words validation (max 450 words)
-- [ ] Create default config template
+- [x] Create default config template
 - [x] Add environment variable support (fallback to env vars)
 - [x] Create config directory on first run (`~/.config/voice-cli/`)
 - [x] Set proper file permissions (chmod 600 for config file)
