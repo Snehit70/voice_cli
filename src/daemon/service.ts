@@ -9,6 +9,7 @@ import { ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
 import { logger, logError } from "../utils/logger";
 import { loadConfig } from "../config/loader";
+import { loadStats, incrementTranscriptionCount } from "../utils/stats";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -20,6 +21,8 @@ export interface DaemonState {
   pid: number;
   uptime: number;
   lastTranscription?: string;
+  transcriptionCountToday: number;
+  transcriptionCountTotal: number;
   errorCount: number;
   lastError?: string;
 }
@@ -35,6 +38,8 @@ export class DaemonService {
   private pidFile: string;
   private stateFile: string;
   private lastTranscription?: Date;
+  private transcriptionCountToday: number = 0;
+  private transcriptionCountTotal: number = 0;
   private errorCount: number = 0;
   private lastError?: string;
   private startTime: number = Date.now();
@@ -50,6 +55,10 @@ export class DaemonService {
     this.pidFile = join(configDir, "daemon.pid");
     this.stateFile = join(configDir, "daemon.state");
 
+    const stats = loadStats();
+    this.transcriptionCountToday = stats.today;
+    this.transcriptionCountTotal = stats.total;
+
     this.setupListeners();
   }
 
@@ -59,6 +68,8 @@ export class DaemonService {
       pid: process.pid,
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
       lastTranscription: this.lastTranscription?.toISOString(),
+      transcriptionCountToday: this.transcriptionCountToday,
+      transcriptionCountTotal: this.transcriptionCountTotal,
       errorCount: this.errorCount,
       lastError: this.lastError,
     };
@@ -227,6 +238,10 @@ export class DaemonService {
 
       await this.clipboard.append(finalText);
       
+      const stats = incrementTranscriptionCount();
+      this.transcriptionCountToday = stats.today;
+      this.transcriptionCountTotal = stats.total;
+
       notify("Success", "Transcription copied to clipboard", "success");
       
       logger.info({ 

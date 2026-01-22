@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { loadConfig } from "../config/loader";
+import { loadStats } from "../utils/stats";
 import { boostCommand } from "./boost";
 import { healthCommand } from "./health";
 import { errorsCommand } from "./errors";
@@ -102,6 +103,9 @@ program
   .action(() => {
     if (!existsSync(pidFile)) {
       console.log("Status: Stopped");
+      const stats = loadStats();
+      console.log(`Today:  ${stats.today}`);
+      console.log(`Total:  ${stats.total}`);
       return;
     }
 
@@ -114,6 +118,8 @@ program
         const state: DaemonState = JSON.parse(readFileSync(stateFile, "utf-8"));
         console.log(`State:  ${state.status.toUpperCase()}`);
         console.log(`Uptime: ${state.uptime}s`);
+        console.log(`Today:  ${state.transcriptionCountToday}`);
+        console.log(`Total:  ${state.transcriptionCountTotal}`);
         console.log(`Errors: ${state.errorCount}`);
         if (state.lastTranscription) {
           console.log(`Last:   ${new Date(state.lastTranscription).toLocaleString()}`);
@@ -124,6 +130,9 @@ program
       }
     } catch (e) {
       console.log("Status: Dead (PID file exists but process is not running)");
+      const stats = loadStats();
+      console.log(`Today:  ${stats.today}`);
+      console.log(`Total:  ${stats.total}`);
     }
   });
 

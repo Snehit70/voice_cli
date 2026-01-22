@@ -307,9 +307,9 @@ interface DaemonState {
 - [x] Check Groq API connectivity (ping with test request)
 - [x] Check Deepgram API connectivity (ping with test request)
 - [x] Check microphone detection (list available devices)
-- [ ] Check clipboard access (test write/read)
-- [ ] Display last error (if any)
-- [ ] Display transcription count (today/total)
+- [x] Check clipboard access (test write/read)
+- [x] Display last error (if any)
+- [x] Display transcription count (today/total)
 - [ ] Format health output (colored, user-friendly)
 
 ### Phase 15: History Management (Priority: High)
