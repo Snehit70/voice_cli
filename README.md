@@ -117,6 +117,12 @@ For a complete list of commands and options, see the **[CLI Command Reference](d
 
 ---
 
+## Exit Codes
+
+For information on exit codes and scripting, see the **[Exit Codes Reference](docs/EXIT_CODES.md)**.
+
+---
+
 ## System-wide Installation (Daemon Setup)
 
 For a seamless "transcribe-anywhere" experience, you should install `voice-cli` as a systemd user service. This ensures the daemon starts automatically on login and runs in the background.
