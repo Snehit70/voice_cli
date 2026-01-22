@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { loadHistory, clearHistory, type HistoryItem } from "../utils/history";
+import { loadHistory, clearHistory, searchHistory, type HistoryItem } from "../utils/history";
 import * as colors from "yoctocolors";
 import { createInterface } from "node:readline/promises";
 
@@ -81,6 +81,29 @@ historyCommand
     console.log(colors.bold(colors.cyan(`Last ${recent.length} transcription(s):`)));
     displayItems(recent);
     console.log(colors.dim("------------------------------------------------"));
+  });
+
+historyCommand
+  .command("search [keyword]")
+  .description("Search transcription history")
+  .option("-d, --date <date>", "Search for specific date (YYYY-MM-DD)")
+  .option("-f, --from <date>", "Search from date (YYYY-MM-DD)")
+  .option("-t, --to <date>", "Search to date (YYYY-MM-DD)")
+  .action(async (keyword, options) => {
+    const results = searchHistory({
+      keyword,
+      date: options.date,
+      from: options.from,
+      to: options.to
+    });
+
+    if (results.length === 0) {
+      console.log(colors.yellow("No matching transcriptions found."));
+      return;
+    }
+
+    console.log(colors.bold(colors.cyan(`Found ${results.length} matching transcription(s):`)));
+    await paginateHistory(results, 20);
   });
 
 historyCommand

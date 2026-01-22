@@ -11,6 +11,51 @@ export interface HistoryItem {
   processingTime: number;
 }
 
+export interface SearchOptions {
+  keyword?: string;
+  date?: string;
+  from?: string;
+  to?: string;
+}
+
+export function searchHistory(options: SearchOptions): HistoryItem[] {
+  const history = loadHistory();
+  return history.filter((item) => {
+    if (options.keyword && !item.text.toLowerCase().includes(options.keyword.toLowerCase())) {
+      return false;
+    }
+
+    const itemDate = new Date(item.timestamp);
+
+    if (options.date) {
+      const searchDate = new Date(options.date);
+      if (isNaN(searchDate.getTime()) || itemDate.toDateString() !== searchDate.toDateString()) {
+        return false;
+      }
+    }
+
+    if (options.from) {
+      const fromDate = new Date(options.from);
+      if (isNaN(fromDate.getTime()) || itemDate < fromDate) {
+        return false;
+      }
+    }
+
+    if (options.to) {
+      const toDate = new Date(options.to);
+      if (isNaN(toDate.getTime())) {
+        return false;
+      }
+      toDate.setHours(23, 59, 59, 999);
+      if (itemDate > toDate) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 export function appendHistory(item: HistoryItem): void {
   let config;
   try {

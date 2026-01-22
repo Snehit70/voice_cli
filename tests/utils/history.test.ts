@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { appendHistory, loadHistory, clearHistory, type HistoryItem } from "../../src/utils/history";
+import { appendHistory, loadHistory, clearHistory, searchHistory, type HistoryItem } from "../../src/utils/history";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -90,5 +90,77 @@ describe("History Utility", () => {
     clearHistory();
     const history = loadHistory();
     expect(history).toEqual([]);
+  });
+
+  it("should filter history by keyword", () => {
+    appendHistory({
+      timestamp: "2026-01-20T10:00:00.000Z",
+      text: "Hello world",
+      duration: 5,
+      engine: "groq",
+      processingTime: 500
+    });
+    appendHistory({
+      timestamp: "2026-01-20T11:00:00.000Z",
+      text: "Something else",
+      duration: 3,
+      engine: "deepgram",
+      processingTime: 300
+    });
+
+    const results = searchHistory({ keyword: "hello" });
+    expect(results).toHaveLength(1);
+    expect(results[0]?.text).toBe("Hello world");
+  });
+
+  it("should filter history by date", () => {
+    appendHistory({
+      timestamp: "2026-01-20T10:00:00.000Z",
+      text: "Day 20",
+      duration: 1,
+      engine: "test",
+      processingTime: 100
+    });
+    appendHistory({
+      timestamp: "2026-01-21T10:00:00.000Z",
+      text: "Day 21",
+      duration: 1,
+      engine: "test",
+      processingTime: 100
+    });
+
+    const results = searchHistory({ date: "2026-01-20" });
+    expect(results).toHaveLength(1);
+    expect(results[0]?.text).toBe("Day 20");
+  });
+
+  it("should filter history by date range", () => {
+    appendHistory({
+      timestamp: "2026-01-20T10:00:00.000Z",
+      text: "Item 1",
+      duration: 1,
+      engine: "test",
+      processingTime: 100
+    });
+    appendHistory({
+      timestamp: "2026-01-21T10:00:00.000Z",
+      text: "Item 2",
+      duration: 1,
+      engine: "test",
+      processingTime: 100
+    });
+    appendHistory({
+      timestamp: "2026-01-22T10:00:00.000Z",
+      text: "Item 3",
+      duration: 1,
+      engine: "test",
+      processingTime: 100
+    });
+
+    const results = searchHistory({ from: "2026-01-20", to: "2026-01-21" });
+    expect(results).toHaveLength(2);
+    expect(results.some(r => r.text === "Item 1")).toBe(true);
+    expect(results.some(r => r.text === "Item 2")).toBe(true);
+    expect(results.some(r => r.text === "Item 3")).toBe(false);
   });
 });
