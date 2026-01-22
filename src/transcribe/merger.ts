@@ -29,27 +29,30 @@ export class TranscriptMerger {
 								{
 									role: "system",
 									content: `You are an expert editor. I will provide two transcripts of the same audio.
-Transcript 1 (Groq Whisper): Accurate words, technical terms.
-Transcript 2 (Deepgram Nova): Good formatting, punctuation, casing.
+Source A (Groq Whisper): Accurate words, technical terms.
+Source B (Deepgram Nova): Good formatting, punctuation, casing.
 
 Your task: Merge them into a single perfect transcript.
 Rules:
-1. Trust Transcript 1 for specific words, spelling, and technical terms.
-2. Trust Transcript 2 for punctuation, casing, and number formatting.
+1. Trust Source A for specific words, spelling, and technical terms.
+2. Trust Source B for punctuation, casing, and number formatting.
 3. Remove any hallucinations (repeated phrases, non-speech, silence).
-4. Output ONLY the final merged text. Do not add any preamble or quotes.`,
+4. If the speaker self-corrects (e.g., "I mean", "actually", "sorry"), keep only the final corrected version.
+5. Remove spelling clarifications (e.g., "with an I", "spelled S-M-I-T-H").
+6. Remove pronunciation meta-commentary (e.g., "that's pronounced...").
+7. Output ONLY the final merged text. Do not add any preamble or quotes.`,
 								},
 								{
 									role: "user",
-									content: `Transcript 1:
+									content: `Source A:
 ${groqText}
 
-Transcript 2:
+Source B:
 ${deepgramText}`,
 								},
 							],
 							model: "llama-3.3-70b-versatile",
-							temperature: 0.1,
+							temperature: 0.0,
 							max_tokens: 4096,
 						},
 						{
