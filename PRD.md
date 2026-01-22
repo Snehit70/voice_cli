@@ -304,9 +304,9 @@ interface DaemonState {
 ### Phase 14: Health Monitoring (Priority: High)
 - [x] Implement `voice-cli health` command
 - [x] Check daemon status (running/stopped, PID, uptime)
-- [ ] Check Groq API connectivity (ping with test request)
-- [ ] Check Deepgram API connectivity (ping with test request)
-- [ ] Check microphone detection (list available devices)
+- [x] Check Groq API connectivity (ping with test request)
+- [x] Check Deepgram API connectivity (ping with test request)
+- [x] Check microphone detection (list available devices)
 - [ ] Check clipboard access (test write/read)
 - [ ] Display last error (if any)
 - [ ] Display transcription count (today/total)

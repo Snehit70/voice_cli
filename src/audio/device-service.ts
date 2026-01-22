@@ -1,8 +1,7 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { logger, logError } from "../utils/logger";
-
-const execAsync = promisify(exec);
+import { withRetry } from "../utils/retry";
 
 export interface AudioDevice {
   id: string;
@@ -16,13 +15,23 @@ export class AudioDeviceService {
    * Filters for useful hardware devices and common virtual devices.
    */
   public async listDevices(): Promise<AudioDevice[]> {
-    try {
-      const { stdout } = await execAsync("arecord -L");
-      return this.parseArecordOutput(stdout);
-    } catch (error) {
-      logError("Failed to list audio devices", error);
-      throw error;
-    }
+    const execAsync = promisify(exec);
+    return withRetry(
+      async () => {
+        try {
+          const result = await execAsync("arecord -L");
+          const stdout = typeof result === "string" ? result : (result as { stdout: string }).stdout;
+          return this.parseArecordOutput(stdout);
+        } catch (error) {
+          logError("Failed to list audio devices", error);
+          throw error;
+        }
+      },
+      {
+        operationName: "List audio devices",
+        timeout: 5000,
+      }
+    );
   }
 
   /**

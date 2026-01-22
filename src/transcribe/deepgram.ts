@@ -11,6 +11,35 @@ export class DeepgramTranscriber {
     this.client = createClient(config.apiKeys.deepgram);
   }
 
+  /**
+   * Checks connectivity to the Deepgram API by fetching projects.
+   * This is used for health checks and API key validation.
+   */
+  public async checkConnection(): Promise<boolean> {
+    try {
+      return await withRetry(async () => {
+        const { result, error } = await this.client.manage.getProjects();
+        if (error) throw error;
+        return !!(result && result.projects);
+      }, {
+        operationName: "Deepgram Connectivity Check",
+        maxRetries: 2,
+        backoffs: [100, 200],
+        timeout: 10000,
+        shouldRetry: (error: any) => {
+          const status = error?.status || (error?.message?.includes("401") ? 401 : undefined);
+          return status !== 401;
+        }
+      });
+    } catch (error: any) {
+      if (error?.status === 401 || error?.message?.includes("401")) {
+        throw new Error("Deepgram: Invalid API Key");
+      }
+      logError("Deepgram connectivity check failed", error);
+      throw error;
+    }
+  }
+
   public async transcribe(audioBuffer: Buffer, language: string = "en", boostWords: string[] = []): Promise<string> {
     try {
       return await withRetry(async (_signal) => {

@@ -82,9 +82,8 @@ export const healthCommand = new Command("health")
       // Test Deepgram
       try {
         const deepgram = new DeepgramTranscriber();
-        // Accessing private client for health check
-        const projects = await (deepgram as any).client.manage.getProjects();
-        if (projects && projects.result) {
+        const connected = await deepgram.checkConnection();
+        if (connected) {
           console.log("✅ Deepgram API: Connected");
         }
       } catch (e) {
