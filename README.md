@@ -112,6 +112,53 @@ bun run index.ts uninstall
 
 The configuration file is located at `~/.config/voice-cli/config.json`.
 
+### API Key Setup
+
+`voice-cli` requires API keys from both **Groq** and **Deepgram** to function. These keys must be added to your configuration file.
+
+#### 1. Groq API Key (Whisper V3)
+Used for high-speed Whisper-based transcription.
+- **Obtain Key**: [Groq Cloud Console](https://console.groq.com/keys)
+- **Validation**: Must start with `gsk_`.
+
+#### 2. Deepgram API Key (Nova-3)
+Used in parallel with Groq for increased reliability and fallback support.
+- **Obtain Key**: [Deepgram Console](https://console.deepgram.com/)
+- **Validation**: Must be a valid UUID format.
+
+#### Example Configuration
+```json
+{
+  "apiKeys": {
+    "groq": "gsk_...",
+    "deepgram": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+### Environment Variables
+
+If the configuration file is missing or keys are not provided in `config.json`, `voice-cli` will fall back to the following environment variables:
+
+- `GROQ_API_KEY`
+- `DEEPGRAM_API_KEY`
+
+### Setup Commands
+
+You can use the CLI to initialize or update your configuration:
+
+```bash
+# Interactive setup (prompts for keys)
+bun run index.ts config init
+
+# Set keys directly
+bun run index.ts config set apiKeys.groq gsk_...
+bun run index.ts config set apiKeys.deepgram 0000...
+
+# Verify connectivity
+bun run index.ts health
+```
+
 ### Boost Words (Custom Vocabulary)
 
 You can improve transcription accuracy for specific terms (names, technical jargon, acronyms) by adding them to the `boostWords` array in the `transcription` section.
