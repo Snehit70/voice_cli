@@ -3,12 +3,43 @@
 This guide covers common issues and their solutions for `voice-cli`.
 
 ## Table of Contents
+- [Daemon Startup Issues](#daemon-startup-issues)
 - [API Key Issues](#api-key-issues)
 - [Microphone & Audio Issues](#microphone--audio-issues)
 - [Global Hotkey Issues](#global-hotkey-issues)
 - [Clipboard Issues](#clipboard-issues)
 - [Systemd & Service Issues](#systemd--service-issues)
 - [Transcription Issues](#transcription-issues)
+
+---
+
+## Daemon Startup Issues
+
+### Daemon Already Running
+- **Symptom**: `Error: Daemon is already running (PID: XXXX)`
+- **Fix**: 
+  - Stop the existing daemon: `voice-cli stop`.
+  - If the PID file is stale (process is dead), delete it: `rm ~/.config/voice-cli/daemon.pid`.
+
+### Configuration Validation Failed
+- **Symptom**: `Config validation failed: ...`
+- **Fix**: 
+  - Ensure API keys are present and correctly formatted (Groq starts with `gsk_`, Deepgram is a UUID).
+  - Check `~/.config/voice-cli/config.json` for syntax errors.
+  - Reset config if needed: `rm ~/.config/voice-cli/config.json && voice-cli config init`.
+
+### Permission Denied (Input/Hotkey)
+- **Symptom**: "Failed to bind global hotkey" or native errors related to `/dev/input/`.
+- **Fix**: 
+  - Add user to `input` group: `sudo usermod -aG input $USER` and **log out/in**.
+  - Ensure XWayland is available if using a Wayland compositor.
+
+### Crash Loop Protection
+- **Symptom**: `Daemon has crashed too many times and will not auto-restart.`
+- **Fix**: 
+  - This happens if the daemon crashes 3 times in 5 minutes.
+  - Check logs for the root cause: `journalctl --user -u voice-cli -f` or `cat ~/.config/voice-cli/logs/daemon.log`.
+  - Fix the underlying issue and restart manually.
 
 ---
 
