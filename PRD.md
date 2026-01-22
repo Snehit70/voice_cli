@@ -261,15 +261,15 @@ interface DaemonState {
 - [x] Verify previous clipboard content is preserved
 - [x] Document platform-specific clipboard behavior in README
 
-### Phase 10: Desktop Notifications (Priority: High)
-- [ ] Install notification library (e.g., `node-notifier`)
-- [ ] Implement notification for recording started
-- [ ] Implement notification for recording stopped
-- [ ] Implement notification for transcription ready
-- [ ] Implement notification for errors (API failures, mic issues)
-- [ ] Implement notification for warnings (4min, 4.5min limits)
-- [ ] Document notification compatibility for GNOME/KDE/Hyprland in README
-- [ ] Add troubleshooting section for notification issues
+### Phase 10: Desktop Notifications (Priority: High) ✅ COMPLETED
+- [x] Install notification library (e.g., `node-notifier`)
+- [x] Implement notification for recording started
+- [x] Implement notification for recording stopped
+- [x] Implement notification for transcription ready
+- [x] Implement notification for errors (API failures, mic issues)
+- [x] Implement notification for warnings (4min, 4.5min limits)
+- [x] Document notification compatibility for GNOME/KDE/Hyprland in README
+- [x] Add troubleshooting section for notification issues
 
 ### Phase 11: Daemon Core (Priority: Critical)
 - [ ] Implement daemon main loop (event-driven)

@@ -68,7 +68,16 @@ You may also need basic X11 development libraries installed for the hotkey liste
   sudo pacman -S libx11 libxtst libxi
   ```
 
-#### 3. Troubleshooting
+#### 3. Desktop Notifications
+Desktop notifications are supported via `node-notifier`. On most Linux environments (GNOME, KDE), this works out of the box. For minimal environments (like Hyprland or Sway), you may need to install a notification daemon.
+
+- **Recommended Daemons**: `dunst`, `mako`, or `swaync`.
+- **Requirements**: Ensure `libnotify` is installed.
+  - **Arch**: `sudo pacman -S libnotify`
+  - **Ubuntu/Debian**: `sudo apt install libnotify-bin`
+  - **Fedora**: `sudo dnf install libnotify`
+
+#### 4. Troubleshooting
 If hotkeys are not detected:
 - Verify XWayland is running.
 - Check if you have permissions to access input devices (try adding your user to the `input` group):
@@ -76,6 +85,10 @@ If hotkeys are not detected:
   sudo usermod -aG input $USER
   ```
   *Note: Log out and back in for group changes to take effect.*
+
+If notifications are not appearing:
+- Verify a notification daemon is running (e.g., `pgrep dunst`).
+- Test manually with `notify-send "test"`.
 
 ### X11 Support
 
