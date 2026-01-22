@@ -93,6 +93,7 @@ npx git+https://github.com/snehit/voice-cli.git
 ## Usage
 
 For a detailed guide, see [Usage Guide](docs/USAGE.md).
+For typical workflows and examples, see [Examples & Workflows](docs/EXAMPLES.md).
 
 ### Quick Start
 1. **Start the daemon**: `bun run index.ts start` (or use the systemd service).

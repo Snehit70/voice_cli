@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide covers everything you need to know about using `voice-cli` effectively.
+This guide covers everything you need to know about using `voice-cli` effectively. For practical examples and typical workflows, see the **[Examples & Workflows](EXAMPLES.md)** document.
 
 ## 1. Daemon Management
 
