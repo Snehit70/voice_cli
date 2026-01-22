@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { GlobalKeyboardListener, type IGlobalKeyEvent } from "node-global-key-listener";
 import { logger, logError } from "../utils/logger";
 import { loadConfig } from "../config/loader";
+import { notify } from "../output/notification";
 
 export class HotkeyListener extends EventEmitter {
   private listener: GlobalKeyboardListener | null = null;
@@ -16,16 +17,19 @@ export class HotkeyListener extends EventEmitter {
     if (this.registered) return;
 
     try {
-      this.listener = new GlobalKeyboardListener();
       const config = loadConfig();
       const hotkey = config.behavior.hotkey.toUpperCase();
       
       const parts = hotkey.split("+").map(p => p.trim());
       const triggerKeyRaw = parts[parts.length - 1];
       if (!triggerKeyRaw) {
-        logger.warn("Invalid hotkey configuration: empty trigger key");
+        const msg = "Invalid hotkey configuration: empty trigger key";
+        logger.warn(msg);
+        notify("Configuration Error", msg, "error");
         return;
       }
+
+      this.listener = new GlobalKeyboardListener();
 
       const modifiers = parts.slice(0, parts.length - 1);
       
@@ -64,7 +68,9 @@ export class HotkeyListener extends EventEmitter {
       this.registered = true;
       logger.info("Global hotkey listener started");
     } catch (error) {
-      logError("Failed to start hotkey listener. Ensure you have permissions (input group or root).", error);
+      const msg = "Failed to start hotkey listener. Ensure you have permissions (input group or root).";
+      logError(msg, error);
+      notify("Hotkey Error", "Failed to bind global hotkey. Check permissions/XWayland.", "error");
       throw error; 
     }
   }
