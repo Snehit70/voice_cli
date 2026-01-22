@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { logger } from "../utils/logger";
 import { notify } from "../output/notification";
 
@@ -54,6 +56,19 @@ export class DaemonSupervisor {
     if (this.restartCount > this.MAX_RESTARTS) {
       const msg = `Daemon crashed ${this.MAX_RESTARTS} times in 5 minutes. Stopping.`;
       logger.error(msg);
+
+      const configDir = join(homedir(), ".config", "voice-cli");
+      const stateFile = join(configDir, "daemon.state");
+      if (existsSync(stateFile)) {
+        try {
+          const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+          state.status = "error";
+          state.lastError = msg;
+          writeFileSync(stateFile, JSON.stringify(state, null, 2));
+        } catch (e) {
+        }
+      }
+
       notify("Daemon Critical Failure", msg, "error");
       process.exit(1);
     }

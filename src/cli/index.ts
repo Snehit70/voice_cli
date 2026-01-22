@@ -115,6 +115,9 @@ program
         if (state.lastTranscription) {
           console.log(`Last:   ${new Date(state.lastTranscription).toLocaleString()}`);
         }
+        if (state.lastError) {
+          console.log(`Error:  ${state.lastError}`);
+        }
       }
     } catch (e) {
       console.log("Status: Dead (PID file exists but process is not running)");

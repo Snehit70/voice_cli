@@ -21,6 +21,7 @@ export interface DaemonState {
   uptime: number;
   lastTranscription?: string;
   errorCount: number;
+  lastError?: string;
 }
 
 export class DaemonService {
@@ -35,6 +36,7 @@ export class DaemonService {
   private stateFile: string;
   private lastTranscription?: Date;
   private errorCount: number = 0;
+  private lastError?: string;
   private startTime: number = Date.now();
 
   constructor() {
@@ -58,6 +60,7 @@ export class DaemonService {
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
       lastTranscription: this.lastTranscription?.toISOString(),
       errorCount: this.errorCount,
+      lastError: this.lastError,
     };
     try {
       writeFileSync(this.stateFile, JSON.stringify(state, null, 2));
@@ -65,8 +68,14 @@ export class DaemonService {
     }
   }
 
-  private setStatus(status: DaemonStatus) {
+  private setStatus(status: DaemonStatus, error?: string) {
     this.status = status;
+    if (status === "starting" || status === "recording") {
+      this.lastError = undefined;
+    }
+    if (error) {
+      this.lastError = error;
+    }
     this.updateState();
   }
 
@@ -89,7 +98,7 @@ export class DaemonService {
 
     this.recorder.on("error", (err: Error) => {
       this.errorCount++;
-      this.setStatus("error");
+      this.setStatus("error", err.message);
       
       let title = "Error";
       const message = err.message;
@@ -99,7 +108,6 @@ export class DaemonService {
       }
 
       notify(title, message, "error");
-      this.setStatus("idle");
     });
   }
 
@@ -132,7 +140,7 @@ export class DaemonService {
   }
 
   private async handleTrigger() {
-    if (this.status === "idle") {
+    if (this.status === "idle" || this.status === "error") {
       try {
         this.setStatus("starting");
         await this.recorder.start();
@@ -238,10 +246,14 @@ export class DaemonService {
         message = "Transcription timed out. Please check your internet connection.";
       }
       
+      this.errorCount++;
+      this.setStatus("error", message);
       notify("Error", message, "error");
     } finally {
       this.lastTranscription = new Date();
-      this.setStatus("idle");
+      if (this.status !== "error") {
+        this.setStatus("idle");
+      }
     }
   }
 }

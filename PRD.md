@@ -272,23 +272,23 @@ interface DaemonState {
 - [x] Add troubleshooting section for notification issues
 
 ### Phase 11: Daemon Core (Priority: Critical)
-- [ ] Implement daemon main loop (event-driven)
-- [ ] Add daemon state management (idle/recording/processing/error)
-- [ ] Implement daemon start command
-- [ ] Implement daemon stop command
-- [ ] Implement daemon restart command
-- [ ] Implement daemon status command
-- [ ] Add PID file management (`~/.config/voice-cli/daemon.pid`)
-- [ ] Add daemon already running detection
-- [ ] Implement graceful shutdown (cleanup resources)
+- [x] Implement daemon main loop (event-driven)
+- [x] Add daemon state management (idle/recording/processing/error)
+- [x] Implement daemon start command
+- [x] Implement daemon stop command
+- [x] Implement daemon restart command
+- [x] Implement daemon status command
+- [x] Add PID file management (~/.config/voice-cli/daemon.pid)
+- [x] Add daemon already running detection
+- [x] Implement graceful shutdown (cleanup resources)
 
 ### Phase 12: Daemon Auto-Restart (Priority: High)
-- [ ] Implement crash detection
-- [ ] Add restart counter (track crashes in 5-minute window)
-- [ ] Implement auto-restart logic (max 3 crashes in 5 minutes)
-- [ ] Add alert notification when restart limit reached
-- [ ] Stop daemon after max restarts (prevent infinite loops)
-- [ ] Log all crashes with stack traces
+- [x] Implement crash detection
+- [x] Add restart counter (track crashes in 5-minute window)
+- [x] Implement auto-restart logic (max 3 crashes in 5 minutes)
+- [x] Add alert notification when restart limit reached
+- [x] Stop daemon after max restarts (prevent infinite loops)
+- [x] Log all crashes with stack traces
 
 ### Phase 13: systemd Integration (Priority: High)
 - [ ] Create systemd service file (`voice-cli.service`)

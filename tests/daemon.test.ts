@@ -126,6 +126,40 @@ describe("DaemonService State Management", () => {
     expect(service.status).toBe("processing");
   });
 
+  test("processing failure should set error state and persist lastError", async () => {
+    service.status = "processing";
+    const errorMsg = "API error";
+    spyOn(GroqClient.prototype, "transcribe").mockRejectedValue(new Error(errorMsg));
+    spyOn(DeepgramTranscriber.prototype, "transcribe").mockRejectedValue(new Error(errorMsg));
+    
+    mockRecorder.emit("stop", Buffer.from("test"), 1000);
+    
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    expect(service.status).toBe("error");
+    expect(service.lastError).toBe("Transcription failed. Check logs.");
+    expect(service.errorCount).toBe(1);
+  });
+
+  test("recorder error should set error state", () => {
+    mockRecorder.emit("error", new Error("Mic failure"));
+    
+    expect(service.status).toBe("error");
+    expect(service.lastError).toBe("Mic failure");
+    expect(service.errorCount).toBe(1);
+  });
+
+  test("new trigger should clear lastError and reset state from error to starting", async () => {
+    service.status = "error";
+    service.lastError = "previous error";
+    
+    mockHotkeyListener.emit("trigger");
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    expect(service.status).toBe("starting");
+    expect(service.lastError).toBeUndefined();
+  });
+
   test("trigger while processing should be ignored", async () => {
     service.status = "processing";
     
