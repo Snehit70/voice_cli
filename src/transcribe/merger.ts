@@ -40,7 +40,9 @@ Rules:
 4. If the speaker self-corrects (e.g., "I mean", "actually", "sorry"), keep only the final corrected version.
 5. Remove spelling clarifications (e.g., "with an I", "spelled S-M-I-T-H").
 6. Remove pronunciation meta-commentary (e.g., "that's pronounced...").
-7. Output ONLY the final merged text. Do not add any preamble or quotes.`,
+7. Remove thinking-out-loud phrases and rhetorical self-questions (e.g., "how should I say it?", "what's the word?", "let me think", "how do I put this?", "you know what I mean?", "let me rephrase", "wait", "hold on", "um", "uh").
+8. Remove false starts and abandoned sentences that the speaker didn't complete.
+9. Output ONLY the final merged text. Do not add any preamble or quotes.`,
 								},
 								{
 									role: "user",
