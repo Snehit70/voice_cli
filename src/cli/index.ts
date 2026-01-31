@@ -117,10 +117,17 @@ program
 	.description("Restart the daemon")
 	.action(async () => {
 		if (existsSync(pidFile)) {
-			const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-			process.kill(pid, "SIGTERM");
-			console.log(colors.yellow("Stopping daemon..."));
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+			try {
+				const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+				process.kill(pid, "SIGTERM");
+				console.log(colors.yellow("Stopping daemon..."));
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				if (existsSync(stateFile)) unlinkSync(stateFile);
+			} catch (error) {
+				console.log(colors.yellow("Cleaning up stale PID file..."));
+				if (existsSync(pidFile)) unlinkSync(pidFile);
+				if (existsSync(stateFile)) unlinkSync(stateFile);
+			}
 		}
 		console.log(colors.cyan("Starting daemon..."));
 		const supervisor = new DaemonSupervisor(join(process.cwd(), "index.ts"));
