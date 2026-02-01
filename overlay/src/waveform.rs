@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-const HISTORY_SIZE: usize = 60;
+pub const HISTORY_SIZE: usize = 60;
 
 pub struct WaveformState {
     history: VecDeque<f32>,
@@ -33,6 +33,7 @@ impl WaveformState {
         self.recording
     }
 
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.history.clear();
         self.recording = false;
