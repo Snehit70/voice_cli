@@ -1,0 +1,147 @@
+import { EventEmitter } from "node:events";
+import {
+	createClient,
+	type LiveClient,
+	LiveTranscriptionEvents,
+} from "@deepgram/sdk";
+import { loadConfig } from "../config/loader";
+import { logError, logger } from "../utils/logger";
+
+export class DeepgramStreamingTranscriber extends EventEmitter {
+	private client;
+	private connection: LiveClient | null = null;
+	private transcriptChunks: string[] = [];
+	private isConnected: boolean = false;
+
+	constructor() {
+		super();
+		const config = loadConfig();
+		this.client = createClient(config.apiKeys.deepgram);
+	}
+
+	public async start(language: string = "en", boostWords: string[] = []) {
+		try {
+			this.transcriptChunks = [];
+			this.isConnected = false;
+
+			const options: any = {
+				model: "nova-3",
+				interim_results: true,
+				endpointing: 300,
+				vad_events: true,
+				smart_format: true,
+				encoding: "linear16",
+				sample_rate: 16000,
+				channels: 1,
+				language: language,
+			};
+
+			if (boostWords.length > 0) {
+				options.keywords = boostWords;
+			}
+
+			this.connection = this.client.listen.live(options);
+
+			this.connection.on(LiveTranscriptionEvents.Open, () => {
+				this.isConnected = true;
+				logger.info("Deepgram streaming connection opened");
+				this.emit("open");
+			});
+
+			this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
+				const transcript = data.channel?.alternatives?.[0]?.transcript;
+
+				if (transcript && transcript.trim().length > 0) {
+					if (data.speech_final) {
+						// Finalized chunk (after silence detected)
+						this.transcriptChunks.push(transcript.trim());
+						logger.info(
+							{ transcript: transcript.trim(), isFinal: true },
+							"Deepgram chunk finalized",
+						);
+						this.emit("transcript", transcript.trim());
+					} else if (data.is_final) {
+						// Also capture is_final transcripts
+						logger.debug(
+							{ transcript: transcript.trim(), isFinal: data.is_final },
+							"Deepgram interim transcript",
+						);
+					}
+				}
+			});
+
+			this.connection.on(LiveTranscriptionEvents.Error, (error) => {
+				logger.error(
+					{ error: JSON.stringify(error, null, 2) },
+					"Deepgram streaming error",
+				);
+				this.emit("error", error);
+			});
+
+			this.connection.on(LiveTranscriptionEvents.Close, () => {
+				this.isConnected = false;
+				logger.info("Deepgram streaming connection closed");
+				this.emit("close");
+			});
+
+			// Wait for connection to open
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					reject(new Error("Deepgram streaming connection timeout"));
+				}, 5000);
+
+				this.once("open", async () => {
+					clearTimeout(timeout);
+					// Add buffer time for WebSocket to be fully ready
+					await new Promise((r) => setTimeout(r, 200));
+					logger.info("Deepgram streaming ready to receive audio");
+					resolve();
+				});
+
+				this.once("error", (err) => {
+					clearTimeout(timeout);
+					reject(err);
+				});
+			});
+		} catch (error) {
+			logError("Failed to start Deepgram streaming", error);
+			throw error;
+		}
+	}
+
+	public send(audioChunk: Buffer) {
+		if (this.connection && this.isConnected) {
+			try {
+				this.connection.send(audioChunk.buffer);
+			} catch (error) {
+				logError("Failed to send audio chunk to Deepgram", error);
+			}
+		}
+	}
+
+	public async stop(): Promise<string> {
+		if (this.connection) {
+			try {
+				// Send finish signal to get final transcripts
+				this.connection.finish();
+
+				// Wait a bit for final transcripts to arrive
+				await new Promise((resolve) => setTimeout(resolve, 500));
+			} catch (error) {
+				logError("Error finishing Deepgram streaming", error);
+			}
+		}
+
+		// Return concatenated transcript
+		const finalText = this.transcriptChunks.join(" ").trim();
+		logger.info(
+			{
+				chunkCount: this.transcriptChunks.length,
+				textLength: finalText.length,
+			},
+			"Deepgram streaming transcription complete",
+		);
+
+		return finalText;
+	}
+}
