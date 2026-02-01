@@ -283,8 +283,9 @@ export class DaemonService {
 						if (isFirstChunk) {
 							isFirstChunk = false;
 							if (
-								chunk.length > 44 &&
-								chunk.subarray(0, 4).toString() === "RIFF"
+								chunk.length >= 44 &&
+								chunk.subarray(0, 4).toString("ascii") === "RIFF" &&
+								chunk.subarray(8, 12).toString("ascii") === "WAVE"
 							) {
 								audioData = chunk.subarray(44);
 								logger.debug(
@@ -295,6 +296,14 @@ export class DaemonService {
 									"Stripped WAV header from first chunk",
 								);
 							}
+						}
+
+						if (audioData.length === 0) {
+							logger.debug(
+								{ chunkNumber: chunkCount },
+								"Skipping empty chunk (header-only)",
+							);
+							return;
 						}
 
 						logger.debug(

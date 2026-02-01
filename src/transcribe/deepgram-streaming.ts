@@ -137,7 +137,7 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 					const timeout = setTimeout(() => {
 						logger.debug("Finalize wait timeout, proceeding");
 						resolve();
-					}, 1000);
+					}, 300);
 
 					const transcriptHandler = () => {
 						clearTimeout(timeout);
