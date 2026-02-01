@@ -241,6 +241,27 @@ export const healthCommand = new Command("health")
 		}
 
 		console.log(`\n${colors.cyan("-------------------------")}`);
+
+		// 6. Visualization Check
+		if (config?.visualization?.enabled) {
+			console.log(`\n${colors.bold("--- Visualization ---")}`);
+			const overlayBinary = join(
+				process.cwd(),
+				"overlay/target/release/voice-overlay",
+			);
+			if (existsSync(overlayBinary)) {
+				console.log(
+					`${colors.green("✅")} Overlay binary found at ${colors.dim(overlayBinary)}`,
+				);
+			} else {
+				console.log(
+					`${colors.red("❌")} Overlay binary not found. Run: ${colors.cyan("cd overlay && cargo build --release")}`,
+				);
+				allOk = false;
+			}
+		}
+
+		console.log(`\n${colors.cyan("-------------------------")}`);
 		if (allOk) {
 			console.log(
 				`${colors.bold(colors.green("✅ System health check passed!"))}`,
