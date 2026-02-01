@@ -428,6 +428,17 @@ export class DaemonService {
 			};
 
 			if (!groqText && !deepgramText) {
+				if (!groqErr && !deepgramErr) {
+					logger.info({ duration }, "No speech detected in recording");
+					notify(
+						"No Speech Detected",
+						"Recording was too short or contained no audible speech.",
+						"warning",
+					);
+					this.setStatus("idle");
+					return;
+				}
+
 				if (groqErr) handleTranscriptionError(groqErr, "Groq");
 				if (deepgramErr) handleTranscriptionError(deepgramErr, "Deepgram");
 

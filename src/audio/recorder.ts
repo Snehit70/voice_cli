@@ -128,8 +128,7 @@ export class AudioRecorder extends EventEmitter {
 							});
 
 							if (!streamStarted) {
-								this.cleanupRecording();
-								reject(enhancedError);
+								this.cleanupRecording().finally(() => reject(enhancedError));
 							} else {
 								logError("Audio stream error", enhancedError, {
 									stderr: stderrOutput,
@@ -196,7 +195,7 @@ export class AudioRecorder extends EventEmitter {
 		this.cleanupTimers();
 
 		const audioBuffer = Buffer.concat(this.chunks);
-		this.cleanupRecording();
+		await this.cleanupRecording();
 
 		if (!force) {
 			if (duration < this.minDuration) {
@@ -220,9 +219,7 @@ export class AudioRecorder extends EventEmitter {
 		);
 		this.emit("stop", audioBuffer, duration);
 
-		setTimeout(() => {
-			this.isStopping = false;
-		}, 100);
+		this.isStopping = false;
 
 		return audioBuffer;
 	}
@@ -236,10 +233,21 @@ export class AudioRecorder extends EventEmitter {
 		this.warningTimer430m = null;
 	}
 
-	private cleanupRecording() {
+	private async cleanupRecording(): Promise<void> {
 		if (this.recording) {
 			try {
-				this.recording.stop();
+				// Wait for the process to actually exit before continuing
+				// This prevents race conditions where the 'close' event fires
+				// after we've already reset isStopping
+				const proc = this.recording.process;
+				if (proc) {
+					await new Promise<void>((resolve) => {
+						proc.once("close", () => resolve());
+						this.recording!.stop();
+					});
+				} else {
+					this.recording.stop();
+				}
 			} catch (e) {
 				logError("Error stopping recording", e);
 			}
