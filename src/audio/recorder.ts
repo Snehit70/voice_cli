@@ -128,8 +128,7 @@ export class AudioRecorder extends EventEmitter {
 							});
 
 							if (!streamStarted) {
-								this.cleanupRecording();
-								reject(enhancedError);
+								this.cleanupRecording().finally(() => reject(enhancedError));
 							} else {
 								logError("Audio stream error", enhancedError, {
 									stderr: stderrOutput,
@@ -240,10 +239,15 @@ export class AudioRecorder extends EventEmitter {
 				// Wait for the process to actually exit before continuing
 				// This prevents race conditions where the 'close' event fires
 				// after we've already reset isStopping
-				await new Promise<void>((resolve) => {
-					this.recording!.process?.once("close", () => resolve());
-					this.recording!.stop();
-				});
+				const proc = this.recording.process;
+				if (proc) {
+					await new Promise<void>((resolve) => {
+						proc.once("close", () => resolve());
+						this.recording!.stop();
+					});
+				} else {
+					this.recording.stop();
+				}
 			} catch (e) {
 				logError("Error stopping recording", e);
 			}
