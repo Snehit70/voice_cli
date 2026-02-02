@@ -40,8 +40,7 @@ pub fn run(rx: mpsc::Receiver<AmplitudeMessage>) -> Result<()> {
         .with_margin((0, 0, MARGIN_BOTTOM, 0))
         .with_exclusive_zone(0)
         .with_events_transparent(true)
-        .build()
-        .unwrap();
+        .build()?;
 
     ev.running(move |event, _ev, _index| match event {
         LayerShellEvent::InitRequest => {

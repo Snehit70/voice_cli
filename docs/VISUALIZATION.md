@@ -37,7 +37,7 @@ The visualization system consists of two components:
 
 ## Features
 
-- **Real-time waveform rendering** - Smooth 60 FPS animations
+- **Real-time waveform rendering** - Smooth 30 FPS animations
 - **Wayland native** - Uses layer-shell protocol for overlay positioning
 - **Low overhead** - Rust binary is only 1.4MB, minimal CPU usage
 - **Automatic lifecycle** - Starts/stops with recording sessions
@@ -199,18 +199,22 @@ This provides smooth transitions without jitter.
 
 ### IPC Protocol
 
-Communication uses Unix domain sockets with a simple text protocol:
+Communication uses Unix domain sockets with newline-delimited JSON messages:
 
+```json
+{"amplitude": 0.45, "recording": true}
+{"amplitude": 0.52, "recording": true}
+{"amplitude": 0.38, "recording": false}
 ```
-recording:true\n    # Start recording (show overlay)
-recording:false\n   # Stop recording (hide overlay)
-amplitude:0.45\n    # Update waveform amplitude
-```
+
+Each message contains:
+- `amplitude` (float): RMS amplitude value from 0.0 to 1.0
+- `recording` (boolean): Whether recording is active
 
 ### Rendering
 
 - **Backend:** tiny-skia (software rendering)
-- **Frame rate:** 60 FPS
+- **Frame rate:** 30 FPS
 - **Resolution:** 400x80 pixels
 - **Position:** Top-center, 20px from top edge
 - **Layer:** Overlay layer (above windows, below notifications)

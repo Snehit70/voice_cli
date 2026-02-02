@@ -1,7 +1,8 @@
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import * as colors from "yoctocolors";
 import { AudioDeviceService } from "../audio/device-service";
@@ -245,8 +246,12 @@ export const healthCommand = new Command("health")
 		// 6. Visualization Check
 		if (config?.visualization?.enabled) {
 			console.log(`\n${colors.bold("--- Visualization ---")}`);
+			const projectRoot = join(
+				dirname(fileURLToPath(import.meta.url)),
+				"../..",
+			);
 			const overlayBinary = join(
-				process.cwd(),
+				projectRoot,
 				"overlay/target/release/voice-overlay",
 			);
 			if (existsSync(overlayBinary)) {

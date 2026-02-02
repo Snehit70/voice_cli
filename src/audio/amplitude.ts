@@ -11,7 +11,7 @@ export function calculateAmplitude(buffer: Buffer): number {
 	const samples = buffer.length / 2;
 	let sum = 0;
 
-	for (let i = 0; i < buffer.length; i += 2) {
+	for (let i = 0; i + 1 < buffer.length; i += 2) {
 		// Read 16-bit signed integer (little-endian)
 		const sample = buffer.readInt16LE(i);
 		// Normalize to -1.0 to 1.0 range

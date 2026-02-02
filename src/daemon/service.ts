@@ -224,8 +224,7 @@ export class DaemonService {
 
 			const config = loadConfig();
 
-			const visualizationEnabled =
-				(config as any).visualization?.enabled ?? false;
+			const visualizationEnabled = config.visualization?.enabled ?? false;
 			if (visualizationEnabled) {
 				try {
 					this.overlayManager = new OverlayManager();
