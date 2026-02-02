@@ -78,13 +78,11 @@ program
 			}
 
 			process.on("SIGINT", () => {
-				service.stop();
-				process.exit(0);
+				service.stop().then(() => process.exit(0));
 			});
 
 			process.on("SIGTERM", () => {
-				service.stop();
-				process.exit(0);
+				service.stop().then(() => process.exit(0));
 			});
 		}
 	});
