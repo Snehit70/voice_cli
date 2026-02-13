@@ -21,6 +21,7 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 	private isConnected: boolean = false;
 	private isConnecting: boolean = false;
 	private audioBuffer: Buffer[] = [];
+	private static readonly MAX_BUFFER_CHUNKS = 100; // ~5 seconds of audio
 
 	constructor() {
 		super();
@@ -102,8 +103,11 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			});
 
 			// Setup connection timeout monitor
-			this.monitorConnection();
+			this.monitorConnection().catch((err) => {
+				logger.error({ err }, "Connection monitor failed");
+			});
 		} catch (error) {
+			this.isConnecting = false; // Ensure flag is reset on sync error
 			logError("Failed to start Deepgram streaming", error);
 			throw error;
 		}
@@ -128,7 +132,11 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			logger.error("Deepgram streaming connection timed out");
 			this.emit("error", err);
 			if (this.connection) {
-				this.connection.requestClose();
+				try {
+					this.connection.requestClose();
+				} catch (e) {
+					logger.error({ err: e }, "Failed to close timed out connection");
+				}
 				this.connection = null;
 			}
 			this.isConnecting = false;
@@ -141,8 +149,19 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 				{ chunks: this.audioBuffer.length },
 				"Flushing buffered audio to Deepgram",
 			);
-			for (const chunk of this.audioBuffer) {
-				this.send(chunk);
+			// Use connection.send directly to avoid re-buffering check in this.send()
+			if (this.connection && this.isConnected) {
+				for (const chunk of this.audioBuffer) {
+					try {
+						const arrayBuffer = chunk.buffer.slice(
+							chunk.byteOffset,
+							chunk.byteOffset + chunk.byteLength,
+						);
+						this.connection.send(arrayBuffer);
+					} catch (error) {
+						logError("Failed to send buffered chunk to Deepgram", error);
+					}
+				}
 			}
 			this.audioBuffer = [];
 		}
@@ -160,6 +179,15 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 				logError("Failed to send audio chunk to Deepgram", error);
 			}
 		} else if (this.isConnecting) {
+			if (
+				this.audioBuffer.length >=
+				DeepgramStreamingTranscriber.MAX_BUFFER_CHUNKS
+			) {
+				logger.warn(
+					"Audio buffer full while connecting, dropping chunk to prevent memory leak",
+				);
+				return;
+			}
 			this.audioBuffer.push(audioChunk);
 		}
 	}
