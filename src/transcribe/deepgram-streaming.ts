@@ -19,6 +19,9 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 	private connection: LiveClient | null = null;
 	private transcriptChunks: string[] = [];
 	private isConnected: boolean = false;
+	private isConnecting: boolean = false;
+	private audioBuffer: Buffer[] = [];
+	private static readonly MAX_BUFFER_CHUNKS = 100; // ~5 seconds of audio
 
 	constructor() {
 		super();
@@ -30,6 +33,8 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 		try {
 			this.transcriptChunks = [];
 			this.isConnected = false;
+			this.isConnecting = true;
+			this.audioBuffer = [];
 
 			const options: LiveSchema = {
 				model: "nova-3",
@@ -50,9 +55,12 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			this.connection = this.client.listen.live(options);
 
 			this.connection.on(LiveTranscriptionEvents.Open, () => {
+				if (!this.connection) return; // Connection was closed before open
 				this.isConnected = true;
+				this.isConnecting = false;
 				logger.info("Deepgram streaming connection opened");
 				this.emit("open");
+				this.flushBuffer();
 			});
 
 			this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
@@ -82,37 +90,81 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 					{ error: JSON.stringify(error, null, 2) },
 					"Deepgram streaming error",
 				);
+				this.isConnecting = false;
+				this.isConnected = false;
 				this.emit("error", error);
 			});
 
 			this.connection.on(LiveTranscriptionEvents.Close, () => {
 				this.isConnected = false;
+				this.isConnecting = false;
 				logger.info("Deepgram streaming connection closed");
 				this.emit("close");
 			});
 
-			// Wait for connection to open
-			await new Promise<void>((resolve, reject) => {
-				const timeout = setTimeout(() => {
-					reject(new Error("Deepgram streaming connection timeout"));
-				}, 5000);
-
-				this.once("open", async () => {
-					clearTimeout(timeout);
-					// Add buffer time for WebSocket to be fully ready
-					await new Promise((r) => setTimeout(r, 200));
-					logger.info("Deepgram streaming ready to receive audio");
-					resolve();
-				});
-
-				this.once("error", (err) => {
-					clearTimeout(timeout);
-					reject(err);
-				});
+			// Setup connection timeout monitor
+			this.monitorConnection().catch((err) => {
+				logger.error({ err }, "Connection monitor failed");
 			});
 		} catch (error) {
+			this.isConnecting = false; // Ensure flag is reset on sync error
 			logError("Failed to start Deepgram streaming", error);
 			throw error;
+		}
+	}
+
+	private async monitorConnection() {
+		// Wait for connection to open or timeout
+		const timeoutMs = 5000;
+		const checkInterval = 100;
+		let elapsed = 0;
+
+		while (elapsed < timeoutMs) {
+			if (this.isConnected) return;
+			if (!this.connection && !this.isConnecting) return; // Stopped or failed
+
+			await new Promise((resolve) => setTimeout(resolve, checkInterval));
+			elapsed += checkInterval;
+		}
+
+		if (this.isConnecting) {
+			const err = new Error("Deepgram streaming connection timeout");
+			logger.error("Deepgram streaming connection timed out");
+			this.emit("error", err);
+			if (this.connection) {
+				try {
+					this.connection.removeAllListeners();
+					this.connection.requestClose();
+				} catch (e) {
+					logger.error({ err: e }, "Failed to close timed out connection");
+				}
+				this.connection = null;
+			}
+			this.isConnecting = false;
+		}
+	}
+
+	private flushBuffer() {
+		if (this.audioBuffer.length > 0) {
+			logger.debug(
+				{ chunks: this.audioBuffer.length },
+				"Flushing buffered audio to Deepgram",
+			);
+			// Use connection.send directly to avoid re-buffering check in this.send()
+			if (this.connection && this.isConnected) {
+				for (const chunk of this.audioBuffer) {
+					try {
+						const arrayBuffer = chunk.buffer.slice(
+							chunk.byteOffset,
+							chunk.byteOffset + chunk.byteLength,
+						);
+						this.connection.send(arrayBuffer);
+					} catch (error) {
+						logError("Failed to send buffered chunk to Deepgram", error);
+					}
+				}
+			}
+			this.audioBuffer = [];
 		}
 	}
 
@@ -127,6 +179,17 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			} catch (error) {
 				logError("Failed to send audio chunk to Deepgram", error);
 			}
+		} else if (this.isConnecting) {
+			if (
+				this.audioBuffer.length >=
+				DeepgramStreamingTranscriber.MAX_BUFFER_CHUNKS
+			) {
+				logger.warn(
+					"Audio buffer full while connecting, dropping chunk to prevent memory leak",
+				);
+				return;
+			}
+			this.audioBuffer.push(audioChunk);
 		}
 	}
 
@@ -173,8 +236,15 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 				this.connection.removeAllListeners();
 				this.connection = null;
 				this.isConnected = false;
+				this.isConnecting = false;
+				this.audioBuffer = [];
 			}
 		}
+
+		// Also clear state if stop called while no connection exists
+		this.isConnecting = false;
+		this.isConnected = false;
+		this.audioBuffer = [];
 
 		const finalText = this.transcriptChunks.join(" ").trim();
 		logger.info(

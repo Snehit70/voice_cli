@@ -266,12 +266,32 @@ export class DaemonService {
 
 					logger.info("Starting Deepgram streaming connection...");
 					this.deepgramStreaming = new DeepgramStreamingTranscriber();
-					await this.deepgramStreaming.start(
+
+					// Attach listeners BEFORE starting (since start is now non-blocking)
+					this.deepgramStreaming.on("transcript", (text) => {
+						logger.info({ text }, "Received streaming transcript chunk");
+					});
+
+					this.deepgramStreaming.on("error", (err) => {
+						logger.error({ err }, "Deepgram streaming error");
+						// We don't stop recording here; we rely on the error being caught
+						// or the streaming just failing silently (daemon will fallback to Groq)
+					});
+
+					// Start connection (non-blocking)
+					const startPromise = this.deepgramStreaming.start(
 						config.transcription.language,
 						config.transcription.boostWords || [],
 					);
-					logger.info("Deepgram streaming connection established");
 
+					// We catch synchronous errors from start(), but async connection errors go to 'error' event
+					startPromise.catch((err) => {
+						logError("Failed to initiate Deepgram streaming", err);
+					});
+
+					logger.info("Deepgram streaming initiated (background)");
+
+					// Check cancellation immediately (though less likely to be pending this fast)
 					if (this.cancelPending) {
 						logger.info("Recording cancelled during setup, cleaning up");
 						this.cancelPending = false;
@@ -290,10 +310,6 @@ export class DaemonService {
 						this.setStatus("idle");
 						return;
 					}
-
-					this.deepgramStreaming.on("transcript", (text) => {
-						logger.info({ text }, "Received streaming transcript chunk");
-					});
 
 					let chunkCount = 0;
 					let isFirstChunk = true;
