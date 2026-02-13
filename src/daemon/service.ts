@@ -351,8 +351,28 @@ export class DaemonService {
 					logger.info("Streaming data handler attached to recorder");
 				}
 
+				if (this.cancelPending) {
+					logger.info("Recording cancelled before recorder start, cleaning up");
+					this.cancelPending = false;
+					if (this.streamingDataHandler) {
+						this.recorder.off("data", this.streamingDataHandler);
+						this.streamingDataHandler = undefined;
+					}
+					if (this.deepgramStreaming) {
+						try {
+							await this.deepgramStreaming.stop();
+						} catch (e) {
+							logError("Failed to stop streaming after cancellation", e);
+						}
+						this.deepgramStreaming = undefined;
+					}
+					this.setStatus("idle");
+					return;
+				}
+
 				await this.recorder.start();
 			} catch (error) {
+				this.cancelPending = false;
 				logError("Failed to start recording", error);
 				if (this.streamingDataHandler) {
 					this.recorder.off("data", this.streamingDataHandler);
