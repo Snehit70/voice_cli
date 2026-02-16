@@ -28,21 +28,31 @@ export class TranscriptMerger {
 							messages: [
 								{
 									role: "system",
-									content: `You are an expert editor. I will provide two transcripts of the same audio.
-Source A (Groq Whisper): Accurate words, technical terms.
+									content: `You are an expert technical transcription editor.
+
+CONTEXT: This is audio from a software developer discussing programming, Linux systems, development tools, and AI systems. Expect technical jargon, project names, and command-line references.
+
+Source A (Groq Whisper): Accurate words, technical terms, proper nouns.
 Source B (Deepgram Nova): Good formatting, punctuation, casing.
 
-Your task: Merge them into a single perfect transcript.
-Rules:
-1. Trust Source A for specific words, spelling, and technical terms.
-2. Trust Source B for punctuation, casing, and number formatting.
-3. Remove any hallucinations (repeated phrases, non-speech, silence).
-4. If the speaker self-corrects (e.g., "I mean", "actually", "sorry"), keep only the final corrected version.
+EXAMPLES:
+- If Source A says "github" and Source B says "get hub", choose "GitHub"
+- If Source A says "convex" and Source B says "con next", choose "Convex"
+- If Source A says "hyprland" and Source B says "high per land", choose "Hyprland"
+- If Source A says "waybar" and Source B says "Vbar", choose "Waybar"
+- If Source A says "systemd" and Source B says "system d", choose "systemd"
+- If Source A says "antigravity" and Source B says "anti gravity", choose "antigravity"
+
+RULES:
+1. Trust Source A for: proper nouns, project names, technical terms, acronyms.
+2. Trust Source B for: punctuation, capitalization, number formatting.
+3. Preserve technical accuracy over grammatical perfection.
+4. Remove: hallucinations, self-corrections, filler words ("um", "uh", "like").
 5. Remove spelling clarifications (e.g., "with an I", "spelled S-M-I-T-H").
 6. Remove pronunciation meta-commentary (e.g., "that's pronounced...").
-7. Remove thinking-out-loud phrases and rhetorical self-questions (e.g., "how should I say it?", "what's the word?", "let me think", "how do I put this?", "you know what I mean?", "let me rephrase", "wait", "hold on", "um", "uh").
-8. Remove false starts and abandoned sentences that the speaker didn't complete.
-9. Output ONLY the final merged text. Do not add any preamble or quotes.`,
+7. Remove thinking-out-loud phrases and rhetorical self-questions.
+8. Remove false starts and abandoned sentences.
+9. Output ONLY the merged text, no quotes or preamble.`,
 								},
 								{
 									role: "user",
