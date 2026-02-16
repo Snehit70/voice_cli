@@ -1,34 +1,12 @@
 import Groq from "groq-sdk";
 import { loadConfig } from "../config/loader";
-import { logError } from "../utils/logger";
+import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 
-export class TranscriptMerger {
-	private client: Groq;
+const MODEL_A = "llama-3.3-70b-versatile";
+const MODEL_B = "openai/gpt-oss-120b";
 
-	constructor() {
-		const config = loadConfig();
-		this.client = new Groq({
-			apiKey: config.apiKeys.groq,
-		});
-	}
-
-	public async merge(groqText: string, deepgramText: string): Promise<string> {
-		if (!groqText && !deepgramText) return "";
-		if (!groqText) return deepgramText;
-		if (!deepgramText) return groqText;
-
-		if (groqText === deepgramText) return deepgramText;
-
-		try {
-			const completion = await withRetry(
-				async (signal) => {
-					return await this.client.chat.completions.create(
-						{
-							messages: [
-								{
-									role: "system",
-									content: `You are an expert technical transcription editor.
+const SYSTEM_PROMPT = `You are an expert technical transcription editor.
 
 CONTEXT: This is audio from a software developer discussing programming, Linux systems, development tools, and AI systems. Expect technical jargon, project names, and command-line references.
 
@@ -52,8 +30,38 @@ RULES:
 6. Remove pronunciation meta-commentary (e.g., "that's pronounced...").
 7. Remove thinking-out-loud phrases and rhetorical self-questions.
 8. Remove false starts and abandoned sentences.
-9. Output ONLY the merged text, no quotes or preamble.`,
-								},
+9. Output ONLY the merged text, no quotes or preamble.`;
+
+interface ModelResult {
+	model: string;
+	result: string;
+	timeMs: number;
+	error?: string;
+}
+
+export class TranscriptMerger {
+	private client: Groq;
+
+	constructor() {
+		const config = loadConfig();
+		this.client = new Groq({
+			apiKey: config.apiKeys.groq,
+		});
+	}
+
+	private async callModel(
+		model: string,
+		groqText: string,
+		deepgramText: string,
+	): Promise<ModelResult> {
+		const startTime = Date.now();
+		try {
+			const completion = await withRetry(
+				async (signal) => {
+					return await this.client.chat.completions.create(
+						{
+							messages: [
+								{ role: "system", content: SYSTEM_PROMPT },
 								{
 									role: "user",
 									content: `Source A:
@@ -63,7 +71,7 @@ Source B:
 ${deepgramText}`,
 								},
 							],
-							model: "llama-3.3-70b-versatile",
+							model,
 							temperature: 0.0,
 							max_tokens: 4096,
 						},
@@ -75,7 +83,7 @@ ${deepgramText}`,
 					);
 				},
 				{
-					operationName: "LLM Merge",
+					operationName: `LLM Merge (${model})`,
 					maxRetries: 2,
 					backoffs: [100, 200],
 					timeout: 30000,
@@ -86,20 +94,67 @@ ${deepgramText}`,
 				},
 			);
 
-			const merged = completion.choices[0]?.message?.content?.trim();
-			return merged || deepgramText || groqText;
+			const result = completion.choices[0]?.message?.content?.trim() || "";
+			return { model, result, timeMs: Date.now() - startTime };
 		} catch (error: any) {
-			if (error?.status === 429) {
-				logError(
-					"LLM merge skipped (Rate Limit exceeded after retries)",
-					error,
-				);
-			} else if (error?.message?.includes("timed out")) {
-				logError("LLM merge skipped (Timeout)", error);
-			} else {
-				logError("LLM merge failed", error);
-			}
-			return deepgramText || groqText;
+			return {
+				model,
+				result: "",
+				timeMs: Date.now() - startTime,
+				error: error?.message || "Unknown error",
+			};
 		}
+	}
+
+	public async merge(groqText: string, deepgramText: string): Promise<string> {
+		if (!groqText && !deepgramText) return "";
+		if (!groqText) return deepgramText;
+		if (!deepgramText) return groqText;
+
+		if (groqText === deepgramText) return deepgramText;
+
+		const [resultA, resultB] = await Promise.all([
+			this.callModel(MODEL_A, groqText, deepgramText),
+			this.callModel(MODEL_B, groqText, deepgramText),
+		]);
+
+		logger.info(
+			{
+				abTest: true,
+				modelA: {
+					model: resultA.model,
+					timeMs: resultA.timeMs,
+					resultLength: resultA.result.length,
+					error: resultA.error,
+				},
+				modelB: {
+					model: resultB.model,
+					timeMs: resultB.timeMs,
+					resultLength: resultB.result.length,
+					error: resultB.error,
+				},
+				groqTextLength: groqText.length,
+				deepgramTextLength: deepgramText.length,
+			},
+			"A/B merge complete",
+		);
+
+		const selectedModel = Math.random() < 0.5 ? resultA : resultB;
+
+		logger.info(
+			{
+				abTest: true,
+				selectedModel: selectedModel.model,
+				selectedTimeMs: selectedModel.timeMs,
+			},
+			"A/B model selected",
+		);
+
+		if (selectedModel.result) return selectedModel.result;
+		if (resultA.result) return resultA.result;
+		if (resultB.result) return resultB.result;
+
+		logError("Both A/B models failed, using fallback");
+		return deepgramText || groqText;
 	}
 }
