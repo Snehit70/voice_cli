@@ -9,7 +9,7 @@ import { notify } from "../output/notification";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
 import { DeepgramStreamingTranscriber } from "../transcribe/deepgram-streaming";
 import { GroqClient } from "../transcribe/groq";
-import { TranscriptMerger } from "../transcribe/merger";
+import { type MergeResult, TranscriptMerger } from "../transcribe/merger";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
 import type { ErrorCode } from "../utils/errors";
 import { AppError } from "../utils/errors";
@@ -536,8 +536,12 @@ export class DaemonService {
 			}
 
 			let finalText = "";
+			let accuracy: MergeResult["accuracy"] | undefined;
+
 			if (groqText && deepgramText) {
-				finalText = await this.merger.merge(groqText, deepgramText);
+				const mergeResult = await this.merger.merge(groqText, deepgramText);
+				finalText = mergeResult.text;
+				accuracy = mergeResult.accuracy;
 			} else {
 				finalText = groqText || deepgramText;
 
@@ -596,6 +600,7 @@ export class DaemonService {
 							: groqText
 								? "groq"
 								: "deepgram",
+					accuracy,
 				},
 				"Transcription complete",
 			);

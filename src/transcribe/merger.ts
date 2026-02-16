@@ -39,6 +39,48 @@ interface ModelResult {
 	error?: string;
 }
 
+export interface MergeResult {
+	text: string;
+	accuracy: {
+		sourcesMatch: boolean;
+		editDistance: number;
+		confidence: number;
+	};
+}
+
+function levenshteinDistance(a: string, b: string): number {
+	if (a.length === 0) return b.length;
+	if (b.length === 0) return a.length;
+
+	const matrix: number[][] = [];
+
+	for (let i = 0; i <= b.length; i++) {
+		const row: number[] = new Array(a.length + 1).fill(0);
+		row[0] = i;
+		matrix.push(row);
+	}
+
+	for (let j = 0; j <= a.length; j++) {
+		matrix[0]![j] = j;
+	}
+
+	for (let i = 1; i <= b.length; i++) {
+		for (let j = 1; j <= a.length; j++) {
+			if (b.charAt(i - 1) === a.charAt(j - 1)) {
+				matrix[i]![j] = matrix[i - 1]![j - 1]!;
+			} else {
+				matrix[i]![j] = Math.min(
+					matrix[i - 1]![j - 1]! + 1,
+					matrix[i]![j - 1]! + 1,
+					matrix[i - 1]![j]! + 1,
+				);
+			}
+		}
+	}
+
+	return matrix[b.length]![a.length]!;
+}
+
 export class TranscriptMerger {
 	private client: Groq;
 
@@ -106,12 +148,37 @@ ${deepgramText}`,
 		}
 	}
 
-	public async merge(groqText: string, deepgramText: string): Promise<string> {
-		if (!groqText && !deepgramText) return "";
-		if (!groqText) return deepgramText;
-		if (!deepgramText) return groqText;
+	public async merge(
+		groqText: string,
+		deepgramText: string,
+	): Promise<MergeResult> {
+		const sourcesMatch = groqText === deepgramText;
 
-		if (groqText === deepgramText) return deepgramText;
+		if (!groqText && !deepgramText) {
+			return {
+				text: "",
+				accuracy: { sourcesMatch, editDistance: 0, confidence: 1 },
+			};
+		}
+		if (!groqText) {
+			return {
+				text: deepgramText,
+				accuracy: { sourcesMatch, editDistance: 0, confidence: 0.5 },
+			};
+		}
+		if (!deepgramText) {
+			return {
+				text: groqText,
+				accuracy: { sourcesMatch, editDistance: 0, confidence: 0.5 },
+			};
+		}
+
+		if (sourcesMatch) {
+			return {
+				text: deepgramText,
+				accuracy: { sourcesMatch: true, editDistance: 0, confidence: 1 },
+			};
+		}
 
 		const [resultA, resultB] = await Promise.all([
 			this.callModel(MODEL_A, groqText, deepgramText),
@@ -150,11 +217,36 @@ ${deepgramText}`,
 			"A/B model selected",
 		);
 
-		if (selectedModel.result) return selectedModel.result;
-		if (resultA.result) return resultA.result;
-		if (resultB.result) return resultB.result;
+		let finalText: string;
+		if (selectedModel.result) {
+			finalText = selectedModel.result;
+		} else if (resultA.result) {
+			finalText = resultA.result;
+		} else if (resultB.result) {
+			finalText = resultB.result;
+		} else {
+			logError("Both A/B models failed, using fallback");
+			finalText = deepgramText || groqText;
+		}
 
-		logError("Both A/B models failed, using fallback");
-		return deepgramText || groqText;
+		const avgSourceLength = (groqText.length + deepgramText.length) / 2;
+		const distToGroq = levenshteinDistance(finalText, groqText);
+		const distToDeepgram = levenshteinDistance(finalText, deepgramText);
+		const editDistance = Math.round((distToGroq + distToDeepgram) / 2);
+
+		const maxPossibleDistance = avgSourceLength;
+		const confidence = Math.max(
+			0,
+			Math.min(1, 1 - editDistance / maxPossibleDistance),
+		);
+
+		return {
+			text: finalText,
+			accuracy: {
+				sourcesMatch: false,
+				editDistance,
+				confidence: Math.round(confidence * 100) / 100,
+			},
+		};
 	}
 }
