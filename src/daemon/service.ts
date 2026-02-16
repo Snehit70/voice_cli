@@ -281,7 +281,6 @@ export class DaemonService {
 					// Start connection (non-blocking)
 					const startPromise = this.deepgramStreaming.start(
 						config.transcription.language,
-						config.transcription.boostWords || [],
 					);
 
 					// We catch synchronous errors from start(), but async connection errors go to 'error' event
@@ -457,12 +456,10 @@ export class DaemonService {
 							groqErr = err;
 							return "";
 						}),
-					this.deepgram
-						.transcribe(convertedBuffer, language, boostWords)
-						.catch((err) => {
-							deepgramErr = err;
-							return "";
-						}),
+					this.deepgram.transcribe(convertedBuffer, language).catch((err) => {
+						deepgramErr = err;
+						return "";
+					}),
 				]);
 			}
 

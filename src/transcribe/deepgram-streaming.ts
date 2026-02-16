@@ -29,7 +29,7 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 		this.client = createClient(config.apiKeys.deepgram);
 	}
 
-	public async start(language: string = "en", boostWords: string[] = []) {
+	public async start(language: string = "en") {
 		try {
 			this.transcriptChunks = [];
 			this.isConnected = false;
@@ -47,10 +47,6 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 				channels: 1,
 				language: language,
 			};
-
-			if (boostWords.length > 0) {
-				options.keyterm = boostWords;
-			}
 
 			this.connection = this.client.listen.live(options);
 
