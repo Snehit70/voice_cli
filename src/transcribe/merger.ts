@@ -1,3 +1,4 @@
+import { distance as levenshteinDistance } from "fastest-levenshtein";
 import Groq from "groq-sdk";
 import { loadConfig } from "../config/loader";
 import { logError, logger } from "../utils/logger";
@@ -46,39 +47,6 @@ export interface MergeResult {
 		editDistance: number;
 		confidence: number;
 	};
-}
-
-function levenshteinDistance(a: string, b: string): number {
-	if (a.length === 0) return b.length;
-	if (b.length === 0) return a.length;
-
-	const matrix: number[][] = [];
-
-	for (let i = 0; i <= b.length; i++) {
-		const row: number[] = new Array(a.length + 1).fill(0);
-		row[0] = i;
-		matrix.push(row);
-	}
-
-	for (let j = 0; j <= a.length; j++) {
-		matrix[0]![j] = j;
-	}
-
-	for (let i = 1; i <= b.length; i++) {
-		for (let j = 1; j <= a.length; j++) {
-			if (b.charAt(i - 1) === a.charAt(j - 1)) {
-				matrix[i]![j] = matrix[i - 1]![j - 1]!;
-			} else {
-				matrix[i]![j] = Math.min(
-					matrix[i - 1]![j - 1]! + 1,
-					matrix[i]![j - 1]! + 1,
-					matrix[i - 1]![j]! + 1,
-				);
-			}
-		}
-	}
-
-	return matrix[b.length]![a.length]!;
 }
 
 export class TranscriptMerger {
@@ -157,7 +125,7 @@ ${deepgramText}`,
 		if (!groqText && !deepgramText) {
 			return {
 				text: "",
-				accuracy: { sourcesMatch, editDistance: 0, confidence: 1 },
+				accuracy: { sourcesMatch, editDistance: 0, confidence: 0 },
 			};
 		}
 		if (!groqText) {
@@ -206,13 +174,15 @@ ${deepgramText}`,
 			"A/B merge complete",
 		);
 
-		const selectedModel = Math.random() < 0.5 ? resultA : resultB;
+		const randomValue = Math.random();
+		const selectedModel = randomValue < 0.5 ? resultA : resultB;
 
 		logger.info(
 			{
 				abTest: true,
 				selectedModel: selectedModel.model,
 				selectedTimeMs: selectedModel.timeMs,
+				randomValue,
 			},
 			"A/B model selected",
 		);
@@ -229,15 +199,21 @@ ${deepgramText}`,
 			finalText = deepgramText || groqText;
 		}
 
-		const avgSourceLength = (groqText.length + deepgramText.length) / 2;
 		const distToGroq = levenshteinDistance(finalText, groqText);
 		const distToDeepgram = levenshteinDistance(finalText, deepgramText);
-		const editDistance = Math.round((distToGroq + distToDeepgram) / 2);
 
-		const maxPossibleDistance = avgSourceLength;
+		// Normalize each distance by the max length of the two strings being compared
+		const maxDistGroq = Math.max(finalText.length, groqText.length) || 1;
+		const maxDistDeepgram =
+			Math.max(finalText.length, deepgramText.length) || 1;
+		const normalizedDistGroq = distToGroq / maxDistGroq;
+		const normalizedDistDeepgram = distToDeepgram / maxDistDeepgram;
+		const editDistance = Math.round(
+			(normalizedDistGroq + normalizedDistDeepgram) * 50,
+		);
 		const confidence = Math.max(
 			0,
-			Math.min(1, 1 - editDistance / maxPossibleDistance),
+			Math.min(1, 1 - (normalizedDistGroq + normalizedDistDeepgram) / 2),
 		);
 
 		return {
