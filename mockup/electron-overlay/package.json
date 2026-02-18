@@ -1,0 +1,24 @@
+{
+	"name": "voice-cli-overlay",
+	"version": "0.1.0",
+	"description": "Waveform overlay for voice-cli",
+	"main": "dist/main.js",
+	"scripts": {
+		"build": "tsc && vite build",
+		"start": "electron .",
+		"dev": "npm run build && electron ."
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^5.1.4",
+		"electron": "^34.0.0",
+		"typescript": "^5.7.0",
+		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4"
+	}
+}
