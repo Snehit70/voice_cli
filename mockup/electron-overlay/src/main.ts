@@ -24,14 +24,17 @@ let mainWindow: BrowserWindow | null = null;
 function createOverlayWindow(
 	config: OverlayConfig = DEFAULT_CONFIG,
 ): BrowserWindow {
-	const { width: screenWidth, height: screenHeight } =
-		screen.getPrimaryDisplay().workAreaSize;
+	const display = screen.getPrimaryDisplay();
+	const { width: screenWidth, height: screenHeight } = display.bounds;
+
+	const x = Math.floor((screenWidth - config.width) / 2);
+	const y = screenHeight - config.height - config.marginBottom;
 
 	const windowOptions: BrowserWindowConstructorOptions = {
 		width: config.width,
 		height: config.height,
-		x: Math.floor((screenWidth - config.width) / 2),
-		y: screenHeight - config.height - config.marginBottom,
+		x,
+		y,
 		frame: false,
 		transparent: true,
 		alwaysOnTop: true,

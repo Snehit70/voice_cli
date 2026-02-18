@@ -13,6 +13,7 @@ type LiveWaveformProps = HTMLAttributes<HTMLDivElement> & {
 	fadeWidth?: number;
 	height?: string | number;
 	sensitivity?: number;
+	noiseThreshold?: number;
 	smoothingTimeConstant?: number;
 	fftSize?: number;
 	historySize?: number;
@@ -36,6 +37,7 @@ export const LiveWaveform = ({
 	barHeight: baseBarHeight = 4,
 	height = 64,
 	sensitivity = 1,
+	noiseThreshold = 0.05,
 	smoothingTimeConstant = 0.8,
 	fftSize = 256,
 	historySize = 60,
@@ -272,6 +274,8 @@ export const LiveWaveform = ({
 				const analyser = audioContext.createAnalyser();
 				analyser.fftSize = fftSize;
 				analyser.smoothingTimeConstant = smoothingTimeConstant;
+				analyser.minDecibels = -85;
+				analyser.maxDecibels = -25;
 
 				const source = audioContext.createMediaStreamSource(stream);
 				source.connect(analyser);
@@ -350,8 +354,10 @@ export const LiveWaveform = ({
 								(i / halfCount) * relevantData.length,
 							);
 							const dataValue = relevantData[dataIndex] ?? 0;
-							const value = Math.min(1, (dataValue / 255) * sensitivity);
-							newBars.push(Math.max(0.05, value));
+							const rawValue = (dataValue / 255) * sensitivity;
+							const value =
+								rawValue < noiseThreshold ? 0.05 : Math.min(1, rawValue);
+							newBars.push(value);
 						}
 
 						for (let i = 0; i < halfCount; i++) {
@@ -359,8 +365,10 @@ export const LiveWaveform = ({
 								(i / halfCount) * relevantData.length,
 							);
 							const dataValue = relevantData[dataIndex] ?? 0;
-							const value = Math.min(1, (dataValue / 255) * sensitivity);
-							newBars.push(Math.max(0.05, value));
+							const rawValue = (dataValue / 255) * sensitivity;
+							const value =
+								rawValue < noiseThreshold ? 0.05 : Math.min(1, rawValue);
+							newBars.push(value);
 						}
 
 						staticBarsRef.current = newBars;
@@ -490,6 +498,7 @@ export const LiveWaveform = ({
 		active,
 		processing,
 		sensitivity,
+		noiseThreshold,
 		updateRate,
 		historySize,
 		barWidth,
