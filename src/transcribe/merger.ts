@@ -4,8 +4,7 @@ import { loadConfig } from "../config/loader";
 import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 
-const MODEL_A = "llama-3.3-70b-versatile";
-const MODEL_B = "llama-3.1-8b-instant";
+const MERGE_MODEL = "llama-3.3-70b-versatile";
 
 const SYSTEM_PROMPT = `You are an expert technical transcription editor.
 
@@ -33,13 +32,6 @@ RULES:
 8. Remove false starts and abandoned sentences.
 9. Output ONLY the merged text, no quotes or preamble.`;
 
-interface ModelResult {
-	model: string;
-	result: string;
-	timeMs: number;
-	error?: string;
-}
-
 export interface MergeResult {
 	text: string;
 	accuracy: {
@@ -57,63 +49,6 @@ export class TranscriptMerger {
 		this.client = new Groq({
 			apiKey: config.apiKeys.groq,
 		});
-	}
-
-	private async callModel(
-		model: string,
-		groqText: string,
-		deepgramText: string,
-	): Promise<ModelResult> {
-		const startTime = Date.now();
-		try {
-			const completion = await withRetry(
-				async (signal) => {
-					return await this.client.chat.completions.create(
-						{
-							messages: [
-								{ role: "system", content: SYSTEM_PROMPT },
-								{
-									role: "user",
-									content: `Source A:
-${groqText}
-
-Source B:
-${deepgramText}`,
-								},
-							],
-							model,
-							temperature: 0.0,
-							max_tokens: 4096,
-						},
-						{
-							signal,
-							timeout: 30000,
-							maxRetries: 0,
-						},
-					);
-				},
-				{
-					operationName: `LLM Merge (${model})`,
-					maxRetries: 2,
-					backoffs: [100, 200],
-					timeout: 30000,
-					shouldRetry: (error: any) => {
-						const status = error?.status;
-						return status !== 401;
-					},
-				},
-			);
-
-			const result = completion.choices[0]?.message?.content?.trim() || "";
-			return { model, result, timeMs: Date.now() - startTime };
-		} catch (error: any) {
-			return {
-				model,
-				result: "",
-				timeMs: Date.now() - startTime,
-				error: error?.message || "Unknown error",
-			};
-		}
 	}
 
 	public async merge(
@@ -148,56 +83,53 @@ ${deepgramText}`,
 			};
 		}
 
-		const [resultA, resultB] = await Promise.all([
-			this.callModel(MODEL_A, groqText, deepgramText),
-			this.callModel(MODEL_B, groqText, deepgramText),
-		]);
-
-		logger.info(
-			{
-				abTest: true,
-				modelA: {
-					model: resultA.model,
-					timeMs: resultA.timeMs,
-					resultLength: resultA.result.length,
-					result: resultA.result,
-					error: resultA.error,
-				},
-				modelB: {
-					model: resultB.model,
-					timeMs: resultB.timeMs,
-					resultLength: resultB.result.length,
-					result: resultB.result,
-					error: resultB.error,
-				},
-				groqTextLength: groqText.length,
-				deepgramTextLength: deepgramText.length,
-			},
-			"A/B merge complete",
-		);
-
-		const randomValue = Math.random();
-		const selectedModel = randomValue < 0.5 ? resultA : resultB;
-
-		logger.info(
-			{
-				abTest: true,
-				selectedModel: selectedModel.model,
-				selectedTimeMs: selectedModel.timeMs,
-				randomValue,
-			},
-			"A/B model selected",
-		);
-
+		const startTime = Date.now();
 		let finalText: string;
-		if (selectedModel.result) {
-			finalText = selectedModel.result;
-		} else if (resultA.result) {
-			finalText = resultA.result;
-		} else if (resultB.result) {
-			finalText = resultB.result;
-		} else {
-			logError("Both A/B models failed, using fallback");
+
+		try {
+			const completion = await withRetry(
+				async (signal) => {
+					return await this.client.chat.completions.create(
+						{
+							model: MERGE_MODEL,
+							messages: [
+								{ role: "system", content: SYSTEM_PROMPT },
+								{
+									role: "user",
+									content: `Source A (Groq Whisper):\n${groqText}\n\nSource B (Deepgram Nova):\n${deepgramText}`,
+								},
+							],
+							temperature: 0.1,
+							max_tokens: 4096,
+						},
+						{ signal, timeout: 30000, maxRetries: 0 },
+					);
+				},
+				{
+					maxRetries: 2,
+					backoffs: [500, 1000],
+					operationName: "LLM merge",
+					timeout: 30000,
+					shouldRetry: (error: Error) =>
+						/ECONNRESET|ETIMEDOUT|rate_limit/i.test(error.message),
+				},
+			);
+
+			finalText = completion.choices[0]?.message?.content?.trim() || "";
+			const timeMs = Date.now() - startTime;
+
+			logger.info(
+				{
+					model: MERGE_MODEL,
+					timeMs,
+					resultLength: finalText.length,
+					groqTextLength: groqText.length,
+					deepgramTextLength: deepgramText.length,
+				},
+				"LLM merge complete",
+			);
+		} catch (error) {
+			logError("LLM merge failed, using fallback", error);
 			finalText = deepgramText || groqText;
 		}
 
