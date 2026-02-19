@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { appendFile as appendFileAsync } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import clipboardy from "clipboardy";
@@ -7,7 +8,7 @@ import { AppError } from "../utils/errors";
 import { logError, logger } from "../utils/logger";
 
 export class ClipboardAccessError extends AppError {
-	constructor(message: string, context?: Record<string, any>) {
+	constructor(message: string, context?: Record<string, unknown>) {
 		super("ACCESS_DENIED", message, context);
 		this.name = "ClipboardAccessError";
 	}
@@ -25,7 +26,7 @@ export class ClipboardManager {
 		if (!existsSync(configDir)) {
 			try {
 				mkdirSync(configDir, { recursive: true });
-			} catch (_e) {}
+			} catch {}
 		}
 	}
 
@@ -35,18 +36,18 @@ export class ClipboardManager {
 			logger.info("Clipboard updated successfully");
 		} catch (error) {
 			logger.error("Clipboard write failed, falling back to file");
-			this.saveToFallbackFile(text);
+			await this.saveToFallbackFile(text);
 			throw new ClipboardAccessError("Failed to write to clipboard", {
 				error,
 			});
 		}
 	}
 
-	private saveToFallbackFile(text: string): void {
+	private async saveToFallbackFile(text: string): Promise<void> {
 		try {
 			const timestamp = new Date().toISOString();
 			const content = `[${timestamp}]\n${text}\n---\n`;
-			appendFileSync(this.fallbackFile, content, { mode: 0o600 });
+			await appendFileAsync(this.fallbackFile, content);
 			logger.info(`Transcription saved to fallback file: ${this.fallbackFile}`);
 		} catch (e) {
 			logError("Failed to save to fallback file", e);
@@ -58,7 +59,7 @@ export class ClipboardManager {
 			try {
 				await this.writeWayland(text);
 				return;
-			} catch (_e) {
+			} catch {
 				logger.warn("wl-copy failed, falling back to clipboardy");
 			}
 		}

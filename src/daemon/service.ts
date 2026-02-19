@@ -672,7 +672,7 @@ export class DaemonService {
 
 			await this.clipboard.append(finalText);
 
-			const stats = incrementTranscriptionCount();
+			const stats = await incrementTranscriptionCount();
 			this.transcriptionCountToday = stats.today;
 			this.transcriptionCountTotal = stats.total;
 
@@ -682,7 +682,7 @@ export class DaemonService {
 					: groqText
 						? "groq"
 						: "deepgram";
-			appendHistory({
+			await appendHistory({
 				timestamp: new Date().toISOString(),
 				text: finalText,
 				duration,
