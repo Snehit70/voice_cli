@@ -27,53 +27,22 @@
 
 The file `tests/transcribe/deepgram.test.ts` was deleted as part of aggressive test cleanup. The real Deepgram integration is tested in `tests/integration/deepgram_api.test.ts`.
 
-### 2. Overlay Component Lint Errors
+### 2. Overlay Component Lint Errors ✅ RESOLVED
 
-**File:** `overlay/src/renderer/LiveWaveform.tsx`
-**Severity:** MEDIUM
+**Status:** Fixed in commit `e79b39f`.
 
-| Line | Error |
-|------|-------|
-| 232 | `forEach()` callback should not return a value (use `for...of` instead) |
-| 296 | `forEach()` callback should not return a value (use `for...of` instead) |
-| 541 | `aria-hidden="true"` on focusable element (accessibility issue) |
-
-**Fix for lines 232, 296:**
-```typescript
-// Current:
-streamRef.current.getTracks().forEach((track) => track.stop());
-
-// Fix:
-for (const track of streamRef.current.getTracks()) {
-  track.stop();
-}
-```
-
-**Fix for line 541:**
-```typescript
-// Current:
-<canvas aria-hidden="true" ... />
-
-// Fix - add tabIndex="-1" to make it non-focusable:
-<canvas aria-hidden="true" tabIndex={-1} ... />
-```
+Changed `forEach()` to `for...of` loops and added `tabIndex={-1}` to canvas.
 
 ---
 
 ## Type Safety Issues
 
-### 1. `as any` Type Assertions in Production Code
+### 1. `as any` Type Assertions in Production Code ✅ RESOLVED
 
-**Severity:** MEDIUM
+**Status:** Fixed in commit `674eda6`. Added type guards in `src/utils/errors.ts`:
+- `isAppError()`, `getErrorCode()`, `hasErrorCode()`, `isErrorWithName()`, `errorIncludes()`
 
-| File | Line | Issue |
-|------|------|-------|
-| `src/cli/logs.ts` | 100 | `(err as any).name === "AbortError"` |
-| `src/cli/config.ts` | 320, 348, 406 | `loadConfig() as any` - bypasses type checking |
-| `src/transcribe/groq.ts` | 67 | `file: file as any` - Groq SDK type mismatch |
-| `src/daemon/service.ts` | 276 | `(err as any).code as ErrorCode` |
-
-**Recommendation:** Create proper type guards or extend types to handle these cases safely.
+---
 
 ### 2. Empty Catch Blocks
 
@@ -251,52 +220,25 @@ All remaining tests pass: `bun test` → 32 tests, 0 failures.
 
 ---
 
-## Overlay Timing & Logging
+## Overlay Timing & Logging ✅ RESOLVED
 
-### Current State
+**Status:** Implemented in commits `0f1ff40`, `6ab029e`, `0c0612f`.
 
-**File:** `overlay/src/main.ts`
+### Implemented
 
-Timing constants are defined:
-```typescript
-const SUCCESS_HIDE_DELAY_MS = 1500;
-const ERROR_HIDE_DELAY_MS = 3000;
-```
+1. **Timestamp in IPC messages** - Added to `IPCMessage` type, set in `broadcastStatus()`
+2. **IPC latency logging** - `overlay/src/ipc-client.ts` logs `[TIMING] IPC state received, latency=Xms`
+3. **State change timing** - `overlay/src/main.ts` logs `[TIMING] State change: X, latency=Yms`
+4. **Window visibility timing** - Logs `[TIMING] Window shown (X), total=Yms`
+5. **Overlay stdout in daemon output** - Changed `stdio: "ignore"` → `stdio: "inherit"`
 
-**No timing/latency logging exists** for:
-- Time from daemon state change to overlay visibility change
-- Time from IPC message sent to received
-- Overlay show/hide latency
+### Results
 
-### Recommended Logging Points
-
-1. **IPC Message Latency** (`src/daemon/ipc.ts`)
-   - Add timestamp to IPC messages
-   - Log round-trip time on client
-
-2. **Overlay Visibility Timing** (`overlay/src/main.ts`)
-   ```typescript
-   // Add at line 75 (stateChange handler):
-   const stateReceivedAt = Date.now();
-   console.log(`[TIMING] State change received: ${state.status} at ${stateReceivedAt}`);
-   
-   // Add after window.show() calls:
-   console.log(`[TIMING] Window shown at ${Date.now()}, latency: ${Date.now() - stateReceivedAt}ms`);
-   ```
-
-3. **Daemon State Update Timing** (`src/daemon/service.ts`)
-   ```typescript
-   // Add in setStatus():
-   logger.debug({ 
-     status, 
-     timestamp: Date.now(),
-     timeSinceLastChange: Date.now() - this.lastStateChangeTime 
-   }, "Status change timing");
-   ```
-
-4. **Waveform Render Performance** (`overlay/src/renderer/LiveWaveform.tsx`)
-   - The component already uses `requestAnimationFrame` properly
-   - Could add FPS counter for debugging
+| Metric | Measured |
+|--------|----------|
+| IPC latency | 0-1ms |
+| State change to window shown | 1-4ms |
+| Initial connection hello | ~193ms |
 
 ---
 
@@ -360,16 +302,16 @@ Add configurable timing values:
 ### High Priority
 
 1. ~~**Fix TypeScript error** in `tests/transcribe/deepgram.test.ts:84`~~ ✅ RESOLVED (file deleted)
-2. **Convert sync file ops to async** in supervisor, logger, clipboard fallback
-3. **Add overlay timing logs** for performance monitoring
-4. **Standardize error handling** with proper type guards
+2. ~~**Convert sync file ops to async** in supervisor, logger, clipboard fallback~~ ✅ RESOLVED (commit `fa8053f`)
+3. ~~**Add overlay timing logs** for performance monitoring~~ ✅ RESOLVED (commit `0f1ff40`)
+4. ~~**Standardize error handling** with proper type guards~~ ✅ RESOLVED (commit `674eda6`)
 
 ### Medium Priority
 
 5. **Add Deepgram streaming reconnection** logic
 6. **Consolidate config loading** in DaemonService
 7. **Add exponential backoff** option to retry utility
-8. **Create shared IPC types** between daemon and overlay
+8. ~~**Create shared IPC types** between daemon and overlay~~ ✅ RESOLVED (commit `0f1ff40`)
 
 ### Low Priority
 
@@ -382,16 +324,16 @@ Add configurable timing values:
 
 ## Metrics for Future Tracking
 
-Once timing logs are added, track:
+Timing logs added in commit `0f1ff40`. Current measurements (Feb 19, 2026):
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| Overlay show latency | <50ms | Unknown |
-| IPC message latency | <10ms | Unknown |
-| State file write time | <5ms | Unknown |
-| Config load time (cached) | <1ms | Unknown |
-| Transcription processing | <2s | ~1.14s (good) |
-| LLM merge time | <1s | 300-600ms (good) |
+| Metric | Target | Current | Status |
+|--------|--------|---------|--------|
+| Overlay show latency | <50ms | 1-4ms | ✅ Excellent |
+| IPC message latency | <10ms | 0-1ms | ✅ Excellent |
+| State file write time | <5ms | ~1ms (debounced) | ✅ Good |
+| Config load time (cached) | <1ms | <1ms | ✅ Good |
+| Transcription processing | <2s | ~500-600ms | ✅ Excellent |
+| LLM merge time | <1s | 120-180ms | ✅ Excellent |
 
 ---
 
