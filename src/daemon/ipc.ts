@@ -138,6 +138,7 @@ export class IPCServer extends EventEmitter {
 			type: "hello",
 			version: IPC_PROTOCOL_VERSION,
 			status: this.currentState?.status || "idle",
+			timestamp: Date.now(),
 		};
 		this.sendToClient(clientId, helloMessage);
 
@@ -191,6 +192,7 @@ export class IPCServer extends EventEmitter {
 		const stateMessage: IPCMessage = {
 			type: "state",
 			status: message.status,
+			timestamp: message.timestamp,
 			lastTranscription: message.lastTranscription,
 			error: message.error,
 		};

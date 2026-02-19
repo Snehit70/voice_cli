@@ -153,6 +153,10 @@ function setupIPCClient(): void {
 		}
 	});
 
+	ipcClient.on("connected", () => {
+		console.log("[IPC] Connected to daemon");
+	});
+
 	ipcClient.connect();
 }
 
