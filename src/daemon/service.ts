@@ -1,4 +1,6 @@
-import { unlinkSync, writeFileSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
+import { existsSync, unlinkSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { convertAudio } from "../audio/converter";
@@ -18,6 +20,7 @@ import { logError, logger } from "../utils/logger";
 import { incrementTranscriptionCount, loadStats } from "../utils/stats";
 import { checkHotkeyConflict } from "./conflict";
 import { HotkeyListener } from "./hotkey";
+import { getIPCServer, type IPCServer } from "./ipc";
 
 const HALLUCINATION_MAX_CHARS = 20;
 
@@ -61,6 +64,11 @@ export class DaemonService {
 	private signalHandler: () => void;
 	private keepAliveInterval?: NodeJS.Timeout;
 	private cancelPending = false;
+	private ipcServer: IPCServer;
+	private stateWriteDebounceTimer?: NodeJS.Timeout;
+	private pendingStateWrite = false;
+	private overlayProcess?: ChildProcess;
+	private overlayPidFile: string;
 
 	constructor() {
 		this.recorder = new AudioRecorder();
@@ -69,9 +77,11 @@ export class DaemonService {
 		this.deepgram = new DeepgramTranscriber();
 		this.merger = new TranscriptMerger();
 		this.clipboard = new ClipboardManager();
+		this.ipcServer = getIPCServer();
 		const configDir = join(homedir(), ".config", "voice-cli");
 		this.pidFile = join(configDir, "daemon.pid");
 		this.stateFile = join(configDir, "daemon.state");
+		this.overlayPidFile = join(configDir, "overlay.pid");
 
 		const stats = loadStats();
 		this.transcriptionCountToday = stats.today;
@@ -90,7 +100,21 @@ export class DaemonService {
 		process.on("SIGUSR1", this.signalHandler);
 	}
 
-	private updateState() {
+	private scheduleStateWrite(): void {
+		if (this.stateWriteDebounceTimer) {
+			return;
+		}
+		this.pendingStateWrite = true;
+		this.stateWriteDebounceTimer = setTimeout(() => {
+			this.stateWriteDebounceTimer = undefined;
+			if (this.pendingStateWrite) {
+				this.pendingStateWrite = false;
+				this.writeStateFile();
+			}
+		}, 50);
+	}
+
+	private async writeStateFile(): Promise<void> {
 		const state: DaemonState = {
 			status: this.status,
 			pid: process.pid,
@@ -102,13 +126,78 @@ export class DaemonService {
 			lastError: this.lastError,
 		};
 		try {
-			writeFileSync(this.stateFile, JSON.stringify(state, null, 2));
+			await writeFile(this.stateFile, JSON.stringify(state, null, 2));
 			logger.debug({ status: this.status }, "Daemon state updated");
 		} catch (e) {
 			logError("Failed to update daemon state file", e, {
 				stateFile: this.stateFile,
 			});
 		}
+	}
+
+	private updateState(): void {
+		this.ipcServer.broadcastStatus(this.status, {
+			lastTranscription: this.lastTranscription?.toISOString(),
+			error: this.lastError,
+		});
+		this.scheduleStateWrite();
+	}
+
+	private getOverlayPath(): string {
+		const config = loadConfig();
+		if (config.overlay?.binaryPath) {
+			return config.overlay.binaryPath;
+		}
+		return join(process.cwd(), "mockup", "electron-overlay");
+	}
+
+	private startOverlay(): void {
+		const config = loadConfig();
+		if (!config.overlay?.enabled || !config.overlay?.autoStart) {
+			return;
+		}
+
+		const overlayPath = this.getOverlayPath();
+
+		if (!existsSync(overlayPath)) {
+			logger.warn(
+				{ path: overlayPath },
+				"Overlay not found, skipping auto-start",
+			);
+			return;
+		}
+
+		try {
+			this.overlayProcess = spawn("bun", ["run", "start"], {
+				cwd: overlayPath,
+				detached: true,
+				stdio: "ignore",
+			});
+
+			this.overlayProcess.unref();
+
+			const pid = this.overlayProcess.pid;
+			if (pid) {
+				writeFile(this.overlayPidFile, pid.toString()).catch(() => {});
+			}
+
+			logger.info({ pid }, "Overlay started");
+		} catch (error) {
+			logError("Failed to start overlay", error);
+		}
+	}
+
+	private stopOverlay(): void {
+		if (this.overlayProcess) {
+			try {
+				this.overlayProcess.kill("SIGTERM");
+			} catch (_e) {}
+			this.overlayProcess = undefined;
+		}
+
+		try {
+			unlinkSync(this.overlayPidFile);
+		} catch (_e) {}
 	}
 
 	private setStatus(status: DaemonStatus, error?: string) {
@@ -131,17 +220,32 @@ export class DaemonService {
 		this.updateState();
 	}
 
+	private notifyStateChange(
+		title: string,
+		message: string,
+		type: "info" | "success" = "info",
+	): void {
+		const config = loadConfig();
+		if (config.overlay?.enabled) {
+			return;
+		}
+		notify(title, message, type);
+	}
+
 	private setupListeners() {
 		this.hotkeyListener.on("trigger", () => this.handleTrigger());
 
 		this.recorder.on("start", () => {
 			this.setStatus("recording");
-			notify("Recording Started", "Listening...", "info");
+			this.notifyStateChange("Recording Started", "Listening...");
 		});
 
 		this.recorder.on("stop", (audioBuffer: Buffer, duration: number) => {
 			this.setStatus("processing");
-			notify("Recording Stopped", "Processing transcription...", "info");
+			this.notifyStateChange(
+				"Recording Stopped",
+				"Processing transcription...",
+			);
 			this.processAudio(audioBuffer, duration);
 		});
 
@@ -202,8 +306,10 @@ export class DaemonService {
 
 	public async start() {
 		try {
-			writeFileSync(this.pidFile, process.pid.toString());
+			await writeFile(this.pidFile, process.pid.toString());
+			await this.ipcServer.start();
 			this.updateState();
+			this.startOverlay();
 
 			const config = loadConfig();
 			const hotkeyDisabled =
@@ -237,13 +343,18 @@ export class DaemonService {
 		}
 	}
 
-	public stop() {
+	public async stop() {
 		this.hotkeyListener.stop();
 		this.recorder.stop(true);
+		this.stopOverlay();
 		process.off("SIGUSR1", this.signalHandler);
 		if (this.keepAliveInterval) {
 			clearInterval(this.keepAliveInterval);
 		}
+		if (this.stateWriteDebounceTimer) {
+			clearTimeout(this.stateWriteDebounceTimer);
+		}
+		await this.ipcServer.stop();
 		try {
 			unlinkSync(this.pidFile);
 			unlinkSync(this.stateFile);
@@ -579,7 +690,11 @@ export class DaemonService {
 				processingTime,
 			});
 
-			notify("Success", "Transcription copied to clipboard", "success");
+			this.notifyStateChange(
+				"Success",
+				"Transcription copied to clipboard",
+				"success",
+			);
 
 			logger.info(
 				{

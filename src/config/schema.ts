@@ -235,11 +235,20 @@ export const TranscriptionSchema = z.object({
 	streaming: z.boolean().default(defaultTranscription.streaming),
 });
 
+export const OverlaySchema = z
+	.object({
+		enabled: z.boolean().default(true),
+		autoStart: z.boolean().default(true),
+		binaryPath: z.string().optional(),
+	})
+	.default({ enabled: true, autoStart: true });
+
 export const ConfigSchema = z.object({
 	apiKeys: ApiKeysSchema,
 	behavior: BehaviorSchema.default(defaultBehavior),
 	paths: PathsSchema.default(defaultPaths),
 	transcription: TranscriptionSchema.default(defaultTranscription),
+	overlay: OverlaySchema,
 });
 
 export const ConfigFileSchema = z.object({
@@ -247,6 +256,7 @@ export const ConfigFileSchema = z.object({
 	behavior: BehaviorSchema.default(defaultBehavior),
 	paths: PathsSchema.default(defaultPaths),
 	transcription: TranscriptionSchema.default(defaultTranscription),
+	overlay: OverlaySchema,
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

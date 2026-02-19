@@ -20,6 +20,7 @@ import { errorsCommand } from "./errors";
 import { healthCommand } from "./health";
 import { historyCommand } from "./history";
 import { logsCommand } from "./logs";
+import { overlayCommand } from "./overlay";
 
 const program = new Command();
 const configDir = join(homedir(), ".config", "voice-cli");
@@ -432,5 +433,6 @@ program.addCommand(boostCommand);
 program.addCommand(healthCommand);
 program.addCommand(errorsCommand);
 program.addCommand(historyCommand);
+program.addCommand(overlayCommand);
 
 export { program };
