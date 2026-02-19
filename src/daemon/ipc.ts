@@ -8,18 +8,13 @@ import {
 } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { DaemonStatus, IPCMessage } from "../shared/ipc-types";
 import { logger } from "../utils/logger";
 
 const IPC_PROTOCOL_VERSION = 1;
 const SOCKET_PATH = join(homedir(), ".config", "voice-cli", "daemon.sock");
 
-export interface IPCMessage {
-	type: "hello" | "state";
-	version?: number;
-	status?: string;
-	lastTranscription?: string;
-	error?: string;
-}
+export type { DaemonStatus, IPCMessage } from "../shared/ipc-types";
 
 export interface IPCServerEvents {
 	clientConnected: (clientId: number) => void;
@@ -216,14 +211,21 @@ export class IPCServer extends EventEmitter {
 	}
 
 	broadcastStatus(
-		status: string,
-		extra?: { lastTranscription?: string; error?: string },
+		status: DaemonStatus,
+		extra?: { lastTranscription?: string; error?: string; timestamp?: number },
 	): void {
+		const timestamp = extra?.timestamp ?? Date.now();
 		this.broadcast({
 			type: "state",
 			status,
-			...extra,
+			timestamp,
+			lastTranscription: extra?.lastTranscription,
+			error: extra?.error,
 		});
+		logger.debug(
+			{ status, timestamp, clients: this.clients.size },
+			"State broadcast",
+		);
 	}
 }
 

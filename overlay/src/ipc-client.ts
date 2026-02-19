@@ -2,35 +2,23 @@ import { EventEmitter } from "node:events";
 import { createConnection, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type {
+	ConnectionStatus,
+	DaemonState,
+	IPCMessage,
+} from "./shared/ipc-types";
 
 const SOCKET_PATH = join(homedir(), ".config", "voice-cli", "daemon.sock");
 const INITIAL_RECONNECT_DELAY = 100;
 const MAX_RECONNECT_DELAY = 5000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
-export type DaemonStatus =
-	| "idle"
-	| "starting"
-	| "recording"
-	| "stopping"
-	| "processing"
-	| "error";
-
-export type ConnectionStatus = "disconnected" | "connecting" | "connected";
-
-export interface DaemonState {
-	status: DaemonStatus;
-	lastTranscription?: string;
-	error?: string;
-}
-
-export interface IPCMessage {
-	type: "hello" | "state";
-	version?: number;
-	status?: string;
-	lastTranscription?: string;
-	error?: string;
-}
+export type {
+	ConnectionStatus,
+	DaemonState,
+	DaemonStatus,
+	IPCMessage,
+} from "./shared/ipc-types";
 
 export class IPCClient extends EventEmitter {
 	private socket: Socket | null = null;
@@ -122,19 +110,28 @@ export class IPCClient extends EventEmitter {
 	}
 
 	private handleMessage(msg: IPCMessage): void {
+		const receivedAt = Date.now();
+		const latency = msg.timestamp ? receivedAt - msg.timestamp : null;
+
+		if (latency !== null) {
+			console.log(`[TIMING] IPC ${msg.type} received, latency=${latency}ms`);
+		}
+
 		if (msg.type === "hello") {
 			this._protocolVersion = msg.version || 1;
 			if (msg.status) {
 				this.updateState({
-					status: msg.status as DaemonStatus,
+					status: msg.status,
+					timestamp: msg.timestamp,
 				});
 			}
 			this.emit("hello", msg);
 		} else if (msg.type === "state") {
 			this.updateState({
-				status: (msg.status as DaemonStatus) || "idle",
+				status: msg.status || "idle",
 				lastTranscription: msg.lastTranscription,
 				error: msg.error,
+				timestamp: msg.timestamp,
 			});
 		}
 	}

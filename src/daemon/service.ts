@@ -8,6 +8,7 @@ import { AudioRecorder } from "../audio/recorder";
 import { loadConfig } from "../config/loader";
 import { ClipboardAccessError, ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
+import type { DaemonStatus } from "../shared/ipc-types";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
 import { DeepgramStreamingTranscriber } from "../transcribe/deepgram-streaming";
 import { GroqClient } from "../transcribe/groq";
@@ -23,14 +24,6 @@ import { HotkeyListener } from "./hotkey";
 import { getIPCServer, type IPCServer } from "./ipc";
 
 const HALLUCINATION_MAX_CHARS = 20;
-
-type DaemonStatus =
-	| "idle"
-	| "starting"
-	| "recording"
-	| "stopping"
-	| "processing"
-	| "error";
 
 export interface DaemonState {
 	status: DaemonStatus;
@@ -139,6 +132,7 @@ export class DaemonService {
 		this.ipcServer.broadcastStatus(this.status, {
 			lastTranscription: this.lastTranscription?.toISOString(),
 			error: this.lastError,
+			timestamp: Date.now(),
 		});
 		this.scheduleStateWrite();
 	}

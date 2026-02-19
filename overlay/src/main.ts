@@ -73,6 +73,11 @@ function setupIPCClient(): void {
 	ipcClient = getIPCClient();
 
 	ipcClient.on("stateChange", (state: DaemonState) => {
+		const receivedAt = Date.now();
+		const latency = state.timestamp ? receivedAt - state.timestamp : null;
+
+		console.log(`[TIMING] State change: ${state.status}, latency=${latency}ms`);
+
 		if (!mainWindow || mainWindow.isDestroyed()) {
 			return;
 		}
@@ -91,6 +96,9 @@ function setupIPCClient(): void {
 				if (previousStatus === "processing") {
 					mainWindow.show();
 					isWindowVisible = true;
+					console.log(
+						`[TIMING] Window shown (success), total=${state.timestamp ? Date.now() - state.timestamp : "N/A"}ms`,
+					);
 					hideTimeout = setTimeout(() => {
 						if (mainWindow && !mainWindow.isDestroyed()) {
 							mainWindow.hide();
@@ -106,6 +114,9 @@ function setupIPCClient(): void {
 			case "error":
 				mainWindow.show();
 				isWindowVisible = true;
+				console.log(
+					`[TIMING] Window shown (error), total=${state.timestamp ? Date.now() - state.timestamp : "N/A"}ms`,
+				);
 				hideTimeout = setTimeout(() => {
 					if (mainWindow && !mainWindow.isDestroyed()) {
 						mainWindow.hide();
@@ -119,6 +130,9 @@ function setupIPCClient(): void {
 			case "processing":
 				mainWindow.show();
 				isWindowVisible = true;
+				console.log(
+					`[TIMING] Window shown (${currentStatus}), total=${state.timestamp ? Date.now() - state.timestamp : "N/A"}ms`,
+				);
 				break;
 		}
 
