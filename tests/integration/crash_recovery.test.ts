@@ -62,6 +62,17 @@ describe.skipIf(isCI)("Daemon Crash Recovery Integration", () => {
 			} catch (_e) {}
 		}
 
+		const overlayPidFile = join(configDir, "overlay.pid");
+		if (existsSync(overlayPidFile)) {
+			try {
+				const overlayPid = parseInt(
+					readFileSync(overlayPidFile, "utf-8").trim(),
+					10,
+				);
+				process.kill(overlayPid, "SIGKILL");
+			} catch (_e) {}
+		}
+
 		rmSync(testHome, { recursive: true, force: true });
 	});
 
