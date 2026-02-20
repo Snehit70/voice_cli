@@ -96,7 +96,48 @@ Hyprland is a dynamic tiling Wayland compositor with excellent keybinding suppor
    bun run index.ts install
    ```
 
-### Hyprland Configuration
+### Hyprland Window Rules (for Overlay)
+
+Add these to `~/.config/hypr/UserConfigs/WindowRules.conf` (or `hyprland.conf`):
+
+```conf
+# Hyprvox Overlay
+windowrule = match:class hyprvox-overlay, float on
+windowrule = match:class hyprvox-overlay, pin on
+windowrule = match:class hyprvox-overlay, no_focus on
+windowrule = match:class hyprvox-overlay, no_shadow on
+windowrule = match:class hyprvox-overlay, no_anim on
+```
+
+**Important:** Hyprland 0.53+ uses `windowrule` (not `windowrulev2`). The syntax is:
+
+```conf
+windowrule = match:class <class>, <effect> <value>
+```
+
+**NOT:**
+
+```conf
+# WRONG - old syntax
+windowrulev2 = pin, class:^(hyprvox-overlay)$
+
+# WRONG - effect before match
+windowrule = pin on, match:class hyprvox-overlay
+```
+
+**What each rule does:**
+
+| Rule | Purpose |
+|------|---------|
+| `float on` | Make overlay a floating window |
+| `pin on` | Show on all workspaces |
+| `no_focus on` | Don't steal keyboard focus |
+| `no_shadow on` | No drop shadow (cleaner look) |
+| `no_anim on` | No open/close animation (faster) |
+
+After adding rules, reload: `hyprctl reload`
+
+### Hyprland Keybindings
 
 Add the following to your `~/.config/hypr/hyprland.conf`:
 
