@@ -43,17 +43,19 @@ hyprctl reload
 
 ### Syntax Notes (Hyprland 0.53+)
 
-**Correct syntax:** `windowrule = match:<criteria>, <effect> <value>`
+**Syntax:** `windowrule = match:<criteria>, <effect> <value>`
+
+Both orders work (match-first or effect-first). We use match-first for readability.
 
 ```conf
-# CORRECT
+# Current syntax (match-first)
 windowrule = match:class hyprvox-overlay, pin on
 
-# WRONG - old windowrulev2 syntax (deprecated)
-windowrulev2 = pin, class:^(hyprvox-overlay)$
-
-# WRONG - effect before match
+# Alternative syntax (effect-first) - also valid
 windowrule = pin on, match:class hyprvox-overlay
+
+# Deprecated syntax (windowrulev2) - DO NOT USE
+windowrulev2 = pin, class:^(hyprvox-overlay)$
 ```
 
 **Rule explanations:**

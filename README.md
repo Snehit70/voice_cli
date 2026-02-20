@@ -54,7 +54,8 @@ Install and configure hyprvox on this Linux system:
    - Deepgram API key (get from console.deepgram.com)
 4. Install service: bun run index.ts install
 5. For Hyprland, add keybind to ~/.config/hypr/hyprland.conf:
-   bind = , Control_R, exec, bun run /path/to/hyprvox/index.ts toggle
+    bind = , code:105, exec, bun run /path/to/hyprvox/index.ts toggle
+    # code:105 = Right Control (use `wev` to find other key codes)
 6. For Hyprland overlay, add to ~/.config/hypr/UserConfigs/WindowRules.conf:
    windowrule = match:class hyprvox-overlay, float on
    windowrule = match:class hyprvox-overlay, pin on
@@ -156,8 +157,11 @@ Add keybind for global hotkey:
 
 ```conf
 # ~/.config/hypr/hyprland.conf
-bind = , Control_R, exec, bun run /path/to/hyprvox/index.ts toggle
+bind = , code:105, exec, bun run /path/to/hyprvox/index.ts toggle
+# code:105 = Right Control
 ```
+
+Use `wev | grep -A5 "key event"` to find key codes.
 
 This bypasses XWayland limitations.
 
