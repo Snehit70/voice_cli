@@ -31,7 +31,11 @@ function isOverlayRunning(): { running: boolean; pid?: number } {
 		process.kill(pid, 0);
 		return { running: true, pid };
 	} catch {
-		unlinkSync(overlayPidFile);
+		try {
+			unlinkSync(overlayPidFile);
+		} catch {
+			// File may have been deleted concurrently
+		}
 		return { running: false };
 	}
 }
@@ -67,7 +71,14 @@ function startOverlay(): void {
 
 	child.unref();
 
-	writeFileSync(overlayPidFile, child.pid?.toString() || "");
+	if (!child.pid) {
+		console.error(
+			`${colors.red("Error:")} Overlay spawned but no PID was assigned`,
+		);
+		return;
+	}
+
+	writeFileSync(overlayPidFile, child.pid.toString());
 
 	console.log(
 		`${colors.green("✅")} Overlay started (${colors.dim(`PID: ${child.pid}`)})`,

@@ -96,6 +96,8 @@ export class DaemonService {
 			const result = configService.reload();
 			if (result.success && result.config) {
 				this.config = result.config;
+				this.groq.reset();
+				this.deepgram.reset();
 				logger.info("Config reloaded successfully");
 				notify("Config Reloaded", "Configuration updated", "info");
 			} else {
@@ -379,10 +381,17 @@ export class DaemonService {
 		}
 		await this.ipcServer.stop();
 		try {
-			unlinkSync(this.pidFile);
-			unlinkSync(this.stateFile);
+			for (const file of [this.pidFile, this.stateFile]) {
+				try {
+					unlinkSync(file);
+				} catch (e) {
+					logger.debug(
+						{ err: e, file },
+						"Failed to remove file during shutdown",
+					);
+				}
+			}
 		} catch (e) {
-			// Files may not exist or already be deleted
 			logger.debug(
 				{ err: e },
 				"Failed to remove PID/state files during shutdown",

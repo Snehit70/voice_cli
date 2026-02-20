@@ -41,20 +41,20 @@ export interface MergeResult {
 
 export class TranscriptMerger {
 	private client: Groq;
-	private mergeModel: string;
 
 	constructor() {
 		const config = loadConfig();
 		this.client = new Groq({
 			apiKey: config.apiKeys.groq,
 		});
-		this.mergeModel = config.transcription.mergeModel;
 	}
 
 	public async merge(
 		groqText: string,
 		deepgramText: string,
 	): Promise<MergeResult> {
+		const config = loadConfig();
+		const mergeModel = config.transcription.mergeModel;
 		const sourcesMatch = groqText === deepgramText;
 
 		if (!groqText && !deepgramText) {
@@ -91,7 +91,7 @@ export class TranscriptMerger {
 				async (signal) => {
 					return await this.client.chat.completions.create(
 						{
-							model: this.mergeModel,
+							model: mergeModel,
 							messages: [
 								{ role: "system", content: SYSTEM_PROMPT },
 								{
@@ -120,7 +120,7 @@ export class TranscriptMerger {
 
 			logger.info(
 				{
-					model: this.mergeModel,
+					model: mergeModel,
 					timeMs,
 					resultLength: finalText.length,
 					groqTextLength: groqText.length,

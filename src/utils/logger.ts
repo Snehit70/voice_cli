@@ -60,6 +60,7 @@ const rotatingStream = createStream(
 	{
 		interval: "1d",
 		path: logDir,
+		mkdir: true,
 	},
 );
 

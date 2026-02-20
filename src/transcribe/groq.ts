@@ -5,13 +5,20 @@ import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 
 export class GroqClient {
-	private client: Groq;
+	private _client: Groq | null = null;
 
-	constructor() {
-		const config = loadConfig();
-		this.client = new Groq({
-			apiKey: config.apiKeys.groq,
-		});
+	private get client(): Groq {
+		if (!this._client) {
+			const config = loadConfig();
+			this._client = new Groq({
+				apiKey: config.apiKeys.groq,
+			});
+		}
+		return this._client;
+	}
+
+	public reset(): void {
+		this._client = null;
 	}
 
 	public async checkConnection(): Promise<boolean> {

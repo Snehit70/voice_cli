@@ -46,7 +46,7 @@ Changed `forEach()` to `for...of` loops and added `tabIndex={-1}` to canvas.
 
 ### 2. Empty Catch Blocks ✅ RESOLVED
 
-**Status:** Fixed in commit (pending). All empty catch blocks now have appropriate logging.
+**Status:** Fixed in commit `7035739`. All empty catch blocks now have appropriate logging.
 
 **Resolution:**
 - Cleanup operations (log rotation, file deletion) → Debug-level logging with `console.debug`

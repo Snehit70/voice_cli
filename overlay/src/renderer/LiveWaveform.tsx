@@ -64,6 +64,23 @@ export const LiveWaveform = ({
 	const needsRedrawRef = useRef(true);
 	const gradientCacheRef = useRef<CanvasGradient | null>(null);
 	const lastWidthRef = useRef(0);
+	const computedColorCacheRef = useRef<string>("");
+	const lastBarColorRef = useRef<string | undefined>(undefined);
+	// Stable refs for callbacks to prevent re-initialization on every render
+	const onErrorRef = useRef(onError);
+	const onStreamReadyRef = useRef(onStreamReady);
+	const onStreamEndRef = useRef(onStreamEnd);
+
+	// Keep refs in sync with props
+	useEffect(() => {
+		onErrorRef.current = onError;
+	}, [onError]);
+	useEffect(() => {
+		onStreamReadyRef.current = onStreamReady;
+	}, [onStreamReady]);
+	useEffect(() => {
+		onStreamEndRef.current = onStreamEnd;
+	}, [onStreamEnd]);
 
 	const heightStyle = typeof height === "number" ? `${height}px` : height;
 
@@ -233,7 +250,7 @@ export const LiveWaveform = ({
 					track.stop();
 				}
 				streamRef.current = null;
-				onStreamEnd?.();
+				onStreamEndRef.current?.();
 			}
 			if (
 				audioContextRef.current &&
@@ -266,7 +283,7 @@ export const LiveWaveform = ({
 							},
 				});
 				streamRef.current = stream;
-				onStreamReady?.(stream);
+				onStreamReadyRef.current?.(stream);
 
 				const AudioContextConstructor =
 					window.AudioContext ||
@@ -287,7 +304,7 @@ export const LiveWaveform = ({
 
 				historyRef.current = [];
 			} catch (error) {
-				onError?.(error as Error);
+				onErrorRef.current?.(error as Error);
 			}
 		};
 
@@ -299,7 +316,7 @@ export const LiveWaveform = ({
 					track.stop();
 				}
 				streamRef.current = null;
-				onStreamEnd?.();
+				onStreamEndRef.current?.();
 			}
 			if (
 				audioContextRef.current &&
@@ -313,15 +330,7 @@ export const LiveWaveform = ({
 				animationRef.current = 0;
 			}
 		};
-	}, [
-		active,
-		deviceId,
-		fftSize,
-		smoothingTimeConstant,
-		onError,
-		onStreamReady,
-		onStreamEnd,
-	]);
+	}, [active, deviceId, fftSize, smoothingTimeConstant]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -407,13 +416,20 @@ export const LiveWaveform = ({
 			needsRedrawRef.current = active;
 			ctx.clearRect(0, 0, rect.width, rect.height);
 
-			const computedBarColor =
-				barColor ||
-				(() => {
-					const style = getComputedStyle(canvas);
-					const color = style.color;
-					return color || "#fff";
-				})();
+			if (
+				barColor !== lastBarColorRef.current ||
+				!computedColorCacheRef.current
+			) {
+				computedColorCacheRef.current =
+					barColor ||
+					(() => {
+						const style = getComputedStyle(canvas);
+						const color = style.color;
+						return color || "#fff";
+					})();
+				lastBarColorRef.current = barColor;
+			}
+			const computedBarColor = computedColorCacheRef.current;
 
 			const step = barWidth + barGap;
 			const barCount = Math.floor(rect.width / step);

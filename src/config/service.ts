@@ -1,5 +1,6 @@
 import {
 	type ConfigLoadResult,
+	clearConfigCache,
 	DEFAULT_CONFIG_FILE,
 	loadConfig,
 	reloadConfig,
@@ -26,6 +27,7 @@ class ConfigService {
 
 	clear(): void {
 		this.config = null;
+		clearConfigCache();
 	}
 }
 

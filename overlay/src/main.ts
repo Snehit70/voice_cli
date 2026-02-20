@@ -33,7 +33,8 @@ function createOverlayWindow(
 	config: OverlayConfig = DEFAULT_CONFIG,
 ): BrowserWindow {
 	const display = screen.getPrimaryDisplay();
-	const { width: screenWidth, height: screenHeight } = display.bounds;
+	// Use workArea to avoid placing overlay behind taskbar/panel
+	const { width: screenWidth, height: screenHeight } = display.workArea;
 
 	const x = Math.floor((screenWidth - config.width) / 2);
 	const y = screenHeight - config.height - config.marginBottom;
@@ -128,6 +129,7 @@ function setupIPCClient(): void {
 			case "starting":
 			case "recording":
 			case "processing":
+			case "stopping":
 				mainWindow.show();
 				isWindowVisible = true;
 				console.log(
@@ -155,6 +157,11 @@ function setupIPCClient(): void {
 
 	ipcClient.on("connected", () => {
 		console.log("[IPC] Connected to daemon");
+	});
+
+	// Add error listener to prevent unhandled error crashes
+	ipcClient.on("error", (err: Error) => {
+		console.error("[IPC] Connection error:", err.message);
 	});
 
 	ipcClient.connect();

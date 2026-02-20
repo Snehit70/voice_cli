@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	ConnectionStatus,
 	DaemonState,
@@ -53,6 +53,7 @@ export function useDaemonState(): UseDaemonStateResult {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("disconnected");
 	const [showSuccess, setShowSuccess] = useState(false);
+	const prevStatusRef = useRef<DaemonStatus>("idle");
 
 	useEffect(() => {
 		const api = window.electronAPI;
@@ -61,12 +62,12 @@ export function useDaemonState(): UseDaemonStateResult {
 		}
 
 		const unsubState = api.onDaemonState((state: DaemonState) => {
-			const wasProcessing = daemonState.status === "processing";
-			const nowIdle = state.status === "idle";
+			const wasProcessing = prevStatusRef.current === "processing";
+			prevStatusRef.current = state.status;
 
 			setDaemonState(state);
 
-			if (wasProcessing && nowIdle && state.lastTranscription) {
+			if (wasProcessing && state.status === "idle" && state.lastTranscription) {
 				setShowSuccess(true);
 				setTimeout(() => setShowSuccess(false), 1500);
 			}
@@ -85,7 +86,7 @@ export function useDaemonState(): UseDaemonStateResult {
 			unsubState();
 			unsubConnection();
 		};
-	}, [daemonState.status]);
+	}, []);
 
 	const getOverlayState = useCallback((): OverlayState => {
 		if (showSuccess) {

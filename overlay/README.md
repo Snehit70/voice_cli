@@ -31,7 +31,7 @@ For the overlay to work properly on Hyprland, add these window rules to your con
 # Voice CLI Overlay - Electron
 windowrulev2 = float, class:^(voice-cli-overlay)$
 windowrulev2 = pin, class:^(voice-cli-overlay)$
-windowrulev2 = stayfocused, class:^(voice-cli-overlay)$
+windowrulev2 = nofocus, class:^(voice-cli-overlay)$
 windowrulev2 = noborder, class:^(voice-cli-overlay)$
 windowrulev2 = noshadow, class:^(voice-cli-overlay)$
 windowrulev2 = noanim, class:^(voice-cli-overlay)$
@@ -51,7 +51,7 @@ hyprctl reload
 |------|---------|
 | `float` | Make it a floating window |
 | `pin` | Show on all workspaces |
-| `stayfocused` | Don't unfocus when clicking elsewhere |
+| `nofocus` | Prevent overlay from receiving focus |
 | `noborder` | Remove window borders |
 | `noshadow` | Remove drop shadow |
 | `noanim` | Disable open/close animations |
@@ -71,8 +71,8 @@ npm start
 
 ## Project Structure
 
-```
-electron-overlay/
+```text
+overlay/
 ├── src/
 │   ├── main.ts          # Electron main process
 │   ├── preload.ts       # Context bridge for IPC
@@ -110,5 +110,5 @@ Edit `src/renderer/App.tsx` to change:
 ## Notes
 
 - Uses Web Audio API for real-time microphone visualization
-- For production, integrate with voice-cli daemon via IPC
+- IPC integration with voice-cli daemon is built-in (daemon broadcasts state via Unix socket)
 - Wayland support requires Hyprland window rules (see above)

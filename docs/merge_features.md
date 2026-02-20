@@ -137,7 +137,7 @@ TECHNICAL TERM EXAMPLES (trust Source A):
 - "nginx" not "engine x" → nginx
 - "postgres" not "post gress" → PostgreSQL
 - "redis" not "red is" → Redis
-- "docker" not "docker" → Docker
+- "docker" not "doc err" → Docker
 - "kubernetes" not "cooper netties" → Kubernetes
 
 MERGE RULES:

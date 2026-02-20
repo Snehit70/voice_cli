@@ -88,7 +88,13 @@ export class IPCClient extends EventEmitter {
 			if (err.code === "ECONNREFUSED" || err.code === "ENOENT") {
 				this.emit("daemonUnavailable");
 			} else {
-				this.emit("error", err);
+				// Only emit error if there's a listener, otherwise log it
+				// This prevents unhandled error crashes
+				if (this.listenerCount("error") > 0) {
+					this.emit("error", err);
+				} else {
+					console.error("[IPCClient] Unhandled socket error:", err.message);
+				}
 			}
 		});
 	}
