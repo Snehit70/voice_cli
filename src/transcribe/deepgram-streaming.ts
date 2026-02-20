@@ -14,12 +14,24 @@ export interface StreamingResult {
 	chunkCount: number;
 }
 
+export interface StreamingFailureReason {
+	type: "error" | "close";
+	message: string;
+	duration: number;
+	chunksReceived: number;
+	chunksSent: number;
+}
+
 export class DeepgramStreamingTranscriber extends EventEmitter {
 	private client: DeepgramClient;
 	private connection: LiveClient | null = null;
 	private transcriptChunks: string[] = [];
 	private isConnected: boolean = false;
 	private isConnecting: boolean = false;
+	private isStopping: boolean = false;
+	private wasConnected: boolean = false;
+	private connectionStartTime: number = 0;
+	private chunksSent: number = 0;
 	private audioBuffer: Buffer[] = [];
 	private static readonly MAX_BUFFER_CHUNKS = 100;
 
@@ -34,6 +46,10 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			this.transcriptChunks = [];
 			this.isConnected = false;
 			this.isConnecting = true;
+			this.isStopping = false;
+			this.wasConnected = false;
+			this.connectionStartTime = 0;
+			this.chunksSent = 0;
 			this.audioBuffer = [];
 
 			const options: LiveSchema = {
@@ -54,6 +70,8 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 				if (!this.connection) return; // Connection was closed before open
 				this.isConnected = true;
 				this.isConnecting = false;
+				this.wasConnected = true;
+				this.connectionStartTime = Date.now();
 				logger.info("Deepgram streaming connection opened");
 				this.emit("open");
 				this.flushBuffer();
@@ -82,19 +100,71 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 			});
 
 			this.connection.on(LiveTranscriptionEvents.Error, (error) => {
+				const wasConnectedBeforeError = this.isConnected;
+				const duration =
+					this.connectionStartTime > 0
+						? Date.now() - this.connectionStartTime
+						: 0;
+
 				logger.error(
-					{ error: JSON.stringify(error, null, 2) },
+					{
+						error: JSON.stringify(error, null, 2),
+						duration,
+						chunksReceived: this.transcriptChunks.length,
+						chunksSent: this.chunksSent,
+					},
 					"Deepgram streaming error",
 				);
+
 				this.isConnecting = false;
 				this.isConnected = false;
+
+				// Emit streaming_failed if connection was lost mid-session
+				if (wasConnectedBeforeError && !this.isStopping) {
+					const failureReason: StreamingFailureReason = {
+						type: "error",
+						message: error?.message || "Unknown error",
+						duration,
+						chunksReceived: this.transcriptChunks.length,
+						chunksSent: this.chunksSent,
+					};
+					this.emit("streaming_failed", failureReason);
+				}
+
 				this.emit("error", error);
 			});
 
 			this.connection.on(LiveTranscriptionEvents.Close, () => {
+				const wasConnectedBeforeClose = this.isConnected;
+				const duration =
+					this.connectionStartTime > 0
+						? Date.now() - this.connectionStartTime
+						: 0;
+
 				this.isConnected = false;
 				this.isConnecting = false;
-				logger.info("Deepgram streaming connection closed");
+
+				logger.info(
+					{
+						duration,
+						chunksReceived: this.transcriptChunks.length,
+						chunksSent: this.chunksSent,
+						expected: this.isStopping,
+					},
+					"Deepgram streaming connection closed",
+				);
+
+				if (wasConnectedBeforeClose && !this.isStopping) {
+					const failureReason: StreamingFailureReason = {
+						type: "close",
+						message: "Connection closed unexpectedly",
+						duration,
+						chunksReceived: this.transcriptChunks.length,
+						chunksSent: this.chunksSent,
+					};
+					this.emit("streaming_failed", failureReason);
+				}
+
 				this.emit("close");
 			});
 
@@ -172,6 +242,7 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 					audioChunk.byteOffset + audioChunk.byteLength,
 				);
 				this.connection.send(arrayBuffer);
+				this.chunksSent++;
 			} catch (error) {
 				logError("Failed to send audio chunk to Deepgram", error);
 			}
@@ -190,6 +261,7 @@ export class DeepgramStreamingTranscriber extends EventEmitter {
 	}
 
 	public async stop(): Promise<StreamingResult> {
+		this.isStopping = true;
 		if (this.connection) {
 			try {
 				// Flush any buffered audio before closing

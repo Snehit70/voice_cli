@@ -11,7 +11,10 @@ import { ClipboardAccessError, ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
 import type { DaemonStatus } from "../shared/ipc-types";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
-import { DeepgramStreamingTranscriber } from "../transcribe/deepgram-streaming";
+import {
+	DeepgramStreamingTranscriber,
+	type StreamingFailureReason,
+} from "../transcribe/deepgram-streaming";
 import { GroqClient } from "../transcribe/groq";
 import { type MergeResult, TranscriptMerger } from "../transcribe/merger";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
@@ -410,6 +413,24 @@ export class DaemonService {
 					this.deepgramStreaming.on("error", (err) => {
 						logger.error({ err }, "Deepgram streaming error");
 					});
+
+					this.deepgramStreaming.on(
+						"streaming_failed",
+						(reason: StreamingFailureReason) => {
+							logger.warn(
+								{
+									reason,
+									fallback: "batch mode",
+								},
+								"Streaming connection lost, will use batch transcription",
+							);
+							notify(
+								"Streaming Interrupted",
+								"Using batch transcription",
+								"warning",
+							);
+						},
+					);
 
 					const startPromise = this.deepgramStreaming.start(
 						this.config.transcription.language,
