@@ -295,6 +295,29 @@ Add configurable timing values:
 }
 ```
 
+### 3. Config Consolidation in DaemonService
+
+**Status:** Plan created (Feb 20, 2026). See `PLAN-CONFIG-CONSOLIDATION.md` for full details.
+
+**Summary:**
+- `loadConfig()` has caching (line 22-23 in loader.ts)
+- 31 calls across 16 files, but all return cached config (no perf issue)
+- Real problem: config changes not detected at runtime
+- Recommended: Add SIGUSR2 signal for config reload + inject config into components
+
+**Quick stats:**
+| Pattern | Count | Files |
+|---------|-------|-------|
+| Module-level init | 7 | logger, notification, hotkey, groq, deepgram, etc. |
+| DaemonService methods | 6 | service.ts |
+| CLI commands | 12 | config.ts, boost.ts, overlay.ts, etc. |
+| Utility functions | 5 | history.ts, recorder.ts |
+
+**Implementation phases:**
+1. Phase 1: Add `clearConfigCache()` + SIGUSR2 handler (1 hour, low risk)
+2. Phase 2: Inject config into component constructors (3-4 hours, medium risk)
+3. Phase 3: Add file watcher for hot reload (future, high risk)
+
 ---
 
 ## Recommendations Summary

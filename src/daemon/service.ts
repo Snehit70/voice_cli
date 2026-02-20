@@ -5,7 +5,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { convertAudio } from "../audio/converter";
 import { AudioRecorder } from "../audio/recorder";
-import { loadConfig } from "../config/loader";
+import type { Config } from "../config/schema";
+import { configService } from "../config/service";
 import { ClipboardAccessError, ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
 import type { DaemonStatus } from "../shared/ipc-types";
@@ -14,8 +15,7 @@ import { DeepgramStreamingTranscriber } from "../transcribe/deepgram-streaming";
 import { GroqClient } from "../transcribe/groq";
 import { type MergeResult, TranscriptMerger } from "../transcribe/merger";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
-import type { ErrorCode } from "../utils/errors";
-import { AppError, errorIncludes, getErrorCode } from "../utils/errors";
+import { errorIncludes, getErrorCode } from "../utils/errors";
 import { appendHistory } from "../utils/history";
 import { logError, logger } from "../utils/logger";
 import { incrementTranscriptionCount, loadStats } from "../utils/stats";
@@ -38,6 +38,7 @@ export interface DaemonState {
 
 export class DaemonService {
 	private status: DaemonStatus = "idle";
+	private config: Config;
 	private recorder: AudioRecorder;
 	private hotkeyListener: HotkeyListener;
 	private groq: GroqClient;
@@ -55,6 +56,7 @@ export class DaemonService {
 	private lastError?: string;
 	private startTime: number = Date.now();
 	private signalHandler: () => void;
+	private reloadSignalHandler: () => void;
 	private keepAliveInterval?: NodeJS.Timeout;
 	private cancelPending = false;
 	private ipcServer: IPCServer;
@@ -64,6 +66,7 @@ export class DaemonService {
 	private overlayPidFile: string;
 
 	constructor() {
+		this.config = configService.get();
 		this.recorder = new AudioRecorder();
 		this.hotkeyListener = new HotkeyListener();
 		this.groq = new GroqClient();
@@ -85,12 +88,30 @@ export class DaemonService {
 			this.handleTrigger();
 		};
 
+		this.reloadSignalHandler = () => {
+			logger.info("Received SIGUSR2 signal, reloading config");
+			const result = configService.reload();
+			if (result.success && result.config) {
+				this.config = result.config;
+				logger.info("Config reloaded successfully");
+				notify("Config Reloaded", "Configuration updated", "info");
+			} else {
+				logger.warn({ error: result.error }, "Config reload failed");
+				notify(
+					"Config Reload Failed",
+					result.error || "Unknown error",
+					"error",
+				);
+			}
+		};
+
 		this.setupListeners();
 		this.setupSignalHandlers();
 	}
 
 	private setupSignalHandlers() {
 		process.on("SIGUSR1", this.signalHandler);
+		process.on("SIGUSR2", this.reloadSignalHandler);
 	}
 
 	private scheduleStateWrite(): void {
@@ -138,16 +159,14 @@ export class DaemonService {
 	}
 
 	private getOverlayPath(): string {
-		const config = loadConfig();
-		if (config.overlay?.binaryPath) {
-			return config.overlay.binaryPath;
+		if (this.config.overlay?.binaryPath) {
+			return this.config.overlay.binaryPath;
 		}
 		return join(process.cwd(), "overlay");
 	}
 
 	private startOverlay(): void {
-		const config = loadConfig();
-		if (!config.overlay?.enabled || !config.overlay?.autoStart) {
+		if (!this.config.overlay?.enabled || !this.config.overlay?.autoStart) {
 			return;
 		}
 
@@ -219,8 +238,7 @@ export class DaemonService {
 		message: string,
 		type: "info" | "success" = "info",
 	): void {
-		const config = loadConfig();
-		if (config.overlay?.enabled) {
+		if (this.config.overlay?.enabled) {
 			return;
 		}
 		notify(title, message, type);
@@ -305,16 +323,15 @@ export class DaemonService {
 			this.updateState();
 			this.startOverlay();
 
-			const config = loadConfig();
 			const hotkeyDisabled =
-				config.behavior.hotkey.toLowerCase() === "disabled";
+				this.config.behavior.hotkey.toLowerCase() === "disabled";
 
 			const isWayland =
 				!!process.env.WAYLAND_DISPLAY ||
 				process.env.XDG_SESSION_TYPE === "wayland";
 
 			if (!hotkeyDisabled) {
-				await checkHotkeyConflict(config.behavior.hotkey);
+				await checkHotkeyConflict(this.config.behavior.hotkey);
 				this.hotkeyListener.start();
 				logger.info("Daemon started. Waiting for hotkey...");
 
@@ -342,6 +359,7 @@ export class DaemonService {
 		this.recorder.stop(true);
 		this.stopOverlay();
 		process.off("SIGUSR1", this.signalHandler);
+		process.off("SIGUSR2", this.reloadSignalHandler);
 		if (this.keepAliveInterval) {
 			clearInterval(this.keepAliveInterval);
 		}
@@ -360,10 +378,9 @@ export class DaemonService {
 		if (this.status === "idle" || this.status === "error") {
 			this.cancelPending = false;
 			try {
-				const config = loadConfig();
 				this.setStatus("starting");
 
-				if (config.transcription.streaming) {
+				if (this.config.transcription.streaming) {
 					if (this.streamingDataHandler) {
 						this.recorder.off("data", this.streamingDataHandler);
 						logger.debug("Removed old streaming data handler");
@@ -372,20 +389,16 @@ export class DaemonService {
 					logger.info("Starting Deepgram streaming connection...");
 					this.deepgramStreaming = new DeepgramStreamingTranscriber();
 
-					// Attach listeners BEFORE starting (since start is now non-blocking)
 					this.deepgramStreaming.on("transcript", (text) => {
 						logger.info({ text }, "Received streaming transcript chunk");
 					});
 
 					this.deepgramStreaming.on("error", (err) => {
 						logger.error({ err }, "Deepgram streaming error");
-						// We don't stop recording here; we rely on the error being caught
-						// or the streaming just failing silently (daemon will fallback to Groq)
 					});
 
-					// Start connection (non-blocking)
 					const startPromise = this.deepgramStreaming.start(
-						config.transcription.language,
+						this.config.transcription.language,
 					);
 
 					// We catch synchronous errors from start(), but async connection errors go to 'error' event
@@ -522,9 +535,8 @@ export class DaemonService {
 
 	private async processAudio(audioBuffer: Buffer, duration: number) {
 		try {
-			const config = loadConfig();
-			const language = config.transcription.language;
-			const boostWords = config.transcription.boostWords || [];
+			const language = this.config.transcription.language;
+			const boostWords = this.config.transcription.boostWords || [];
 
 			const convertedBuffer = await convertAudio(audioBuffer);
 
@@ -535,9 +547,9 @@ export class DaemonService {
 			let groqText = "";
 			let deepgramText = "";
 
-			let streamingChunkCount = -1; // -1 = batch mode (not streaming)
+			let streamingChunkCount = -1;
 
-			if (config.transcription.streaming && this.deepgramStreaming) {
+			if (this.config.transcription.streaming && this.deepgramStreaming) {
 				const [groqResult, streamingResult] = await Promise.all([
 					this.groq
 						.transcribe(convertedBuffer, language, boostWords)
