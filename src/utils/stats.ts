@@ -10,7 +10,7 @@ export interface TranscriptionStats {
 	lastDate: string;
 }
 
-const STATS_FILE = join(homedir(), ".config", "voice-cli", "stats.json");
+const STATS_FILE = join(homedir(), ".config", "hypr", "vox", "stats.json");
 
 export function loadStats(): TranscriptionStats {
 	const todayDate =
@@ -57,7 +57,7 @@ export function loadStats(): TranscriptionStats {
 }
 
 export async function saveStats(stats: TranscriptionStats): Promise<void> {
-	const dir = join(homedir(), ".config", "voice-cli");
+	const dir = join(homedir(), ".config", "hypr", "vox");
 	if (!existsSync(dir)) {
 		await mkdir(dir, { recursive: true });
 	}

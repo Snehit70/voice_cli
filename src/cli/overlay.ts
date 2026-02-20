@@ -6,7 +6,7 @@ import { Command } from "commander";
 import * as colors from "yoctocolors";
 import { loadConfig } from "../config/loader";
 
-const configDir = join(homedir(), ".config", "voice-cli");
+const configDir = join(homedir(), ".config", "hypr", "vox");
 const overlayPidFile = join(configDir, "overlay.pid");
 
 function getDefaultOverlayPath(): string {

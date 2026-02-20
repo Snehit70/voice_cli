@@ -13,8 +13,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
 describe.skipIf(isCI)("Daemon Crash Recovery Integration", () => {
-	const testHome = join(tmpdir(), `voice-cli-crash-test-${Date.now()}`);
-	const configDir = join(testHome, ".config", "voice-cli");
+	const testHome = join(tmpdir(), `hyprvox-crash-test-${Date.now()}`);
+	const configDir = join(testHome, ".config", "hypr", "vox");
 	const pidFile = join(configDir, "daemon.pid");
 	const configFile = join(configDir, "config.json");
 	const stateFile = join(configDir, "daemon.state");

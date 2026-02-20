@@ -23,13 +23,13 @@ import { logsCommand } from "./logs";
 import { overlayCommand } from "./overlay";
 
 const program = new Command();
-const configDir = join(homedir(), ".config", "voice-cli");
+const configDir = join(homedir(), ".config", "hypr", "vox");
 const pidFile = join(configDir, "daemon.pid");
 const stateFile = join(configDir, "daemon.state");
 
 program
-	.name("voice-cli")
-	.description("Voice-to-text CLI daemon")
+	.name("hyprvox")
+	.description("Speech-to-text daemon for Hyprland")
 	.version("1.0.0");
 
 program
@@ -47,10 +47,10 @@ program
 						colors.red(`Error: Daemon is already running (PID: ${pid})`),
 					);
 					console.log(
-						`To stop the daemon, run: ${colors.cyan("voice-cli stop")}`,
+						`To stop the daemon, run: ${colors.cyan("hyprvox stop")}`,
 					);
 					console.log(
-						`Or if using systemd: ${colors.cyan("systemctl --user stop voice-cli")}`,
+						`Or if using systemd: ${colors.cyan("systemctl --user stop hyprvox")}`,
 					);
 					process.exit(1);
 				} catch {
@@ -221,7 +221,7 @@ program
 	.action(() => {
 		if (!existsSync(pidFile)) {
 			console.error(colors.red("Error: Daemon is not running."));
-			console.log(`Start it with: ${colors.cyan("voice-cli start")}`);
+			console.log(`Start it with: ${colors.cyan("hyprvox start")}`);
 			process.exit(1);
 		}
 
@@ -240,7 +240,7 @@ program
 			console.log(colors.yellow("Cleaning up stale PID file..."));
 			if (existsSync(pidFile)) unlinkSync(pidFile);
 			if (existsSync(stateFile)) unlinkSync(stateFile);
-			console.log(`Start the daemon with: ${colors.cyan("voice-cli start")}`);
+			console.log(`Start the daemon with: ${colors.cyan("hyprvox start")}`);
 			process.exit(1);
 		}
 	});
@@ -250,7 +250,7 @@ program
 	.description("Install systemd service")
 	.action(() => {
 		try {
-			const serviceName = "voice-cli";
+			const serviceName = "hyprvox";
 			const serviceDir = join(homedir(), ".config", "systemd", "user");
 			const logsDir = join(configDir, "logs");
 			const servicePath = join(serviceDir, `${serviceName}.service`);
@@ -271,7 +271,7 @@ program
 			console.log(`Installing systemd service for ${serviceName}...`);
 
 			const serviceContent = `[Unit]
-Description=Voice CLI Daemon
+Description=Hyprvox Daemon
 After=network.target sound.target
 StartLimitIntervalSec=300
 StartLimitBurst=3
@@ -370,7 +370,7 @@ program
 	.command("uninstall")
 	.description("Remove systemd service")
 	.action(() => {
-		const serviceName = "voice-cli";
+		const serviceName = "hyprvox";
 		const serviceDir = join(homedir(), ".config", "systemd", "user");
 		const servicePath = join(serviceDir, `${serviceName}.service`);
 
@@ -431,7 +431,7 @@ program
 			});
 
 			console.log(
-				"\nTo use a device, add its ID to your config file (~/.config/voice-cli/config.json):",
+				"\nTo use a device, add its ID to your config file (~/.config/hypr/vox/config.json):",
 			);
 			console.log('"behavior": { "audioDevice": "YOUR_DEVICE_ID" }');
 		} catch (error) {
