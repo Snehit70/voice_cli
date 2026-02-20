@@ -57,9 +57,11 @@ Install and configure hyprvox on this Linux system:
     bind = , code:105, exec, bun run /path/to/hyprvox/index.ts toggle
     # code:105 = Right Control (use `wev` to find other key codes)
 6. For Hyprland overlay, add to ~/.config/hypr/UserConfigs/WindowRules.conf:
-   windowrule = match:class hyprvox-overlay, float on
-   windowrule = match:class hyprvox-overlay, pin on
-   windowrule = match:class hyprvox-overlay, no_focus on
+    windowrule = match:class hyprvox-overlay, float on
+    windowrule = match:class hyprvox-overlay, pin on
+    windowrule = match:class hyprvox-overlay, no_focus on
+    windowrule = match:class hyprvox-overlay, no_shadow on
+    windowrule = match:class hyprvox-overlay, no_anim on
 7. Reload: hyprctl reload
 8. Verify: bun run index.ts health
 ```
@@ -87,6 +89,8 @@ For Hyprland, add these window rules:
 windowrule = match:class hyprvox-overlay, float on
 windowrule = match:class hyprvox-overlay, pin on
 windowrule = match:class hyprvox-overlay, no_focus on
+windowrule = match:class hyprvox-overlay, no_shadow on
+windowrule = match:class hyprvox-overlay, no_anim on
 ```
 
 ## Installation

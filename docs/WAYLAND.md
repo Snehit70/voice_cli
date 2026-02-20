@@ -218,8 +218,8 @@ hyprctl reload
    # Daemon logs
    journalctl --user -u hyprvox -f
 
-   # Or direct log file
-   tail -f ~/.config/hyprvox/logs/daemon.log
+    # Or direct log file
+    tail -f ~/.config/hypr/vox/logs/hyprvox-$(date +%Y-%m-%d).log
    ```
 
 ---
@@ -417,7 +417,7 @@ journalctl --user -u hyprvox -f
 
 If you're using native compositor bindings exclusively, you can disable the built-in hotkey listener to avoid XWayland dependency:
 
-Edit `~/.config/hyprvox/config.json`:
+Edit `~/.config/hypr/vox/config.json`:
 
 ```json
 {
