@@ -16,10 +16,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest
+          bun-version: 1.2.2
       
       - name: Install dependencies
         run: bun install
       
       - name: Run tests
-        run: bun test tests/clipboard.test.ts
+        run: bun test

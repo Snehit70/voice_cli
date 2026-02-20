@@ -171,6 +171,7 @@ const defaultPaths = {
 const defaultTranscription = {
 	language: "en",
 	streaming: false,
+	mergeModel: "llama-3.3-70b-versatile",
 } as const;
 
 export const ApiKeysSchema = z.object({
@@ -233,13 +234,23 @@ export const TranscriptionSchema = z.object({
 	}),
 	language: z.enum(["en"]).default(defaultTranscription.language as "en"),
 	streaming: z.boolean().default(defaultTranscription.streaming),
+	mergeModel: z.string().default(defaultTranscription.mergeModel),
 });
+
+export const OverlaySchema = z
+	.object({
+		enabled: z.boolean().default(true),
+		autoStart: z.boolean().default(true),
+		binaryPath: z.string().optional(),
+	})
+	.default({ enabled: true, autoStart: true });
 
 export const ConfigSchema = z.object({
 	apiKeys: ApiKeysSchema,
 	behavior: BehaviorSchema.default(defaultBehavior),
 	paths: PathsSchema.default(defaultPaths),
 	transcription: TranscriptionSchema.default(defaultTranscription),
+	overlay: OverlaySchema,
 });
 
 export const ConfigFileSchema = z.object({
@@ -247,6 +258,7 @@ export const ConfigFileSchema = z.object({
 	behavior: BehaviorSchema.default(defaultBehavior),
 	paths: PathsSchema.default(defaultPaths),
 	transcription: TranscriptionSchema.default(defaultTranscription),
+	overlay: OverlaySchema,
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

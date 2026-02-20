@@ -240,6 +240,49 @@ export const healthCommand = new Command("health")
 			);
 		}
 
+		// 6. Overlay Check
+		console.log(`\n${colors.bold("--- Overlay Status ---")}`);
+		const overlayPidFile = join(configDir, "overlay.pid");
+
+		if (config?.overlay?.enabled === false) {
+			console.log(`${colors.blue("ℹ️")}  Overlay is disabled in config`);
+		} else {
+			if (existsSync(overlayPidFile)) {
+				const overlayPid = parseInt(
+					readFileSync(overlayPidFile, "utf-8").trim(),
+					10,
+				);
+				try {
+					process.kill(overlayPid, 0);
+					console.log(
+						`${colors.green("✅")} Overlay is running (${colors.dim(`PID: ${overlayPid}`)})`,
+					);
+				} catch {
+					console.log(
+						`${colors.yellow("⚠️")}  Overlay PID file exists but process is dead`,
+					);
+				}
+			} else {
+				console.log(`${colors.blue("ℹ️")}  Overlay is not running`);
+				if (config?.overlay?.autoStart) {
+					console.log(
+						`${colors.yellow("⚠️")}  Auto-start is enabled but overlay not running`,
+					);
+				}
+			}
+
+			const socketPath = join(configDir, "daemon.sock");
+			if (existsSync(socketPath)) {
+				console.log(
+					`${colors.green("✅")} IPC socket available for overlay connection`,
+				);
+			} else {
+				console.log(
+					`${colors.yellow("⚠️")}  IPC socket not found (daemon not running?)`,
+				);
+			}
+		}
+
 		console.log(`\n${colors.cyan("-------------------------")}`);
 		if (allOk) {
 			console.log(

@@ -1,33 +1,32 @@
-import { unlinkSync, writeFileSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { convertAudio } from "../audio/converter";
 import { AudioRecorder } from "../audio/recorder";
-import { loadConfig } from "../config/loader";
+import type { Config } from "../config/schema";
+import { configService } from "../config/service";
 import { ClipboardAccessError, ClipboardManager } from "../output/clipboard";
 import { notify } from "../output/notification";
+import type { DaemonStatus } from "../shared/ipc-types";
 import { DeepgramTranscriber } from "../transcribe/deepgram";
-import { DeepgramStreamingTranscriber } from "../transcribe/deepgram-streaming";
+import {
+	DeepgramStreamingTranscriber,
+	type StreamingFailureReason,
+} from "../transcribe/deepgram-streaming";
 import { GroqClient } from "../transcribe/groq";
 import { type MergeResult, TranscriptMerger } from "../transcribe/merger";
 import { ErrorTemplates, formatUserError } from "../utils/error-templates";
-import type { ErrorCode } from "../utils/errors";
-import { AppError } from "../utils/errors";
+import { errorIncludes, getErrorCode } from "../utils/errors";
 import { appendHistory } from "../utils/history";
 import { logError, logger } from "../utils/logger";
 import { incrementTranscriptionCount, loadStats } from "../utils/stats";
 import { checkHotkeyConflict } from "./conflict";
 import { HotkeyListener } from "./hotkey";
+import { getIPCServer, type IPCServer } from "./ipc";
 
 const HALLUCINATION_MAX_CHARS = 20;
-
-type DaemonStatus =
-	| "idle"
-	| "starting"
-	| "recording"
-	| "stopping"
-	| "processing"
-	| "error";
 
 export interface DaemonState {
 	status: DaemonStatus;
@@ -42,6 +41,7 @@ export interface DaemonState {
 
 export class DaemonService {
 	private status: DaemonStatus = "idle";
+	private config: Config;
 	private recorder: AudioRecorder;
 	private hotkeyListener: HotkeyListener;
 	private groq: GroqClient;
@@ -59,19 +59,28 @@ export class DaemonService {
 	private lastError?: string;
 	private startTime: number = Date.now();
 	private signalHandler: () => void;
+	private reloadSignalHandler: () => void;
 	private keepAliveInterval?: NodeJS.Timeout;
 	private cancelPending = false;
+	private ipcServer: IPCServer;
+	private stateWriteDebounceTimer?: NodeJS.Timeout;
+	private pendingStateWrite = false;
+	private overlayProcess?: ChildProcess;
+	private overlayPidFile: string;
 
 	constructor() {
+		this.config = configService.get();
 		this.recorder = new AudioRecorder();
 		this.hotkeyListener = new HotkeyListener();
 		this.groq = new GroqClient();
 		this.deepgram = new DeepgramTranscriber();
 		this.merger = new TranscriptMerger();
 		this.clipboard = new ClipboardManager();
+		this.ipcServer = getIPCServer();
 		const configDir = join(homedir(), ".config", "voice-cli");
 		this.pidFile = join(configDir, "daemon.pid");
 		this.stateFile = join(configDir, "daemon.state");
+		this.overlayPidFile = join(configDir, "overlay.pid");
 
 		const stats = loadStats();
 		this.transcriptionCountToday = stats.today;
@@ -82,15 +91,50 @@ export class DaemonService {
 			this.handleTrigger();
 		};
 
+		this.reloadSignalHandler = () => {
+			logger.info("Received SIGUSR2 signal, reloading config");
+			const result = configService.reload();
+			if (result.success && result.config) {
+				this.config = result.config;
+				this.groq.reset();
+				this.deepgram.reset();
+				this.merger.reset();
+				logger.info("Config reloaded successfully");
+				notify("Config Reloaded", "Configuration updated", "info");
+			} else {
+				logger.warn({ error: result.error }, "Config reload failed");
+				notify(
+					"Config Reload Failed",
+					result.error || "Unknown error",
+					"error",
+				);
+			}
+		};
+
 		this.setupListeners();
 		this.setupSignalHandlers();
 	}
 
 	private setupSignalHandlers() {
 		process.on("SIGUSR1", this.signalHandler);
+		process.on("SIGUSR2", this.reloadSignalHandler);
 	}
 
-	private updateState() {
+	private scheduleStateWrite(): void {
+		if (this.stateWriteDebounceTimer) {
+			return;
+		}
+		this.pendingStateWrite = true;
+		this.stateWriteDebounceTimer = setTimeout(() => {
+			this.stateWriteDebounceTimer = undefined;
+			if (this.pendingStateWrite) {
+				this.pendingStateWrite = false;
+				this.writeStateFile();
+			}
+		}, 50);
+	}
+
+	private async writeStateFile(): Promise<void> {
 		const state: DaemonState = {
 			status: this.status,
 			pid: process.pid,
@@ -102,12 +146,130 @@ export class DaemonService {
 			lastError: this.lastError,
 		};
 		try {
-			writeFileSync(this.stateFile, JSON.stringify(state, null, 2));
+			await writeFile(this.stateFile, JSON.stringify(state, null, 2));
 			logger.debug({ status: this.status }, "Daemon state updated");
 		} catch (e) {
 			logError("Failed to update daemon state file", e, {
 				stateFile: this.stateFile,
 			});
+		}
+	}
+
+	private updateState(): void {
+		this.ipcServer.broadcastStatus(this.status, {
+			lastTranscription: this.lastTranscription?.toISOString(),
+			error: this.lastError,
+			timestamp: Date.now(),
+		});
+		this.scheduleStateWrite();
+	}
+
+	private getOverlayPath(): string {
+		if (this.config.overlay?.binaryPath) {
+			return this.config.overlay.binaryPath;
+		}
+		return join(process.cwd(), "overlay");
+	}
+
+	private async waitForProcessExit(
+		pid: number,
+		timeoutMs = 3000,
+	): Promise<void> {
+		const start = Date.now();
+		while (Date.now() - start < timeoutMs) {
+			try {
+				process.kill(pid, 0);
+				await new Promise((r) => setTimeout(r, 50));
+			} catch {
+				return;
+			}
+		}
+		logger.debug({ pid, timeoutMs }, "Timeout waiting for process exit");
+	}
+
+	private startOverlay(): void {
+		if (!this.config.overlay?.enabled || !this.config.overlay?.autoStart) {
+			return;
+		}
+
+		(async () => {
+			try {
+				const raw = readFileSync(this.overlayPidFile, "utf8").trim();
+				const oldPid = parseInt(raw, 10);
+				if (!Number.isNaN(oldPid)) {
+					process.kill(oldPid, "SIGTERM");
+					logger.debug({ oldPid }, "Terminated stale overlay process");
+					await this.waitForProcessExit(oldPid);
+				}
+			} catch {
+				// PID file absent or process already dead
+			}
+
+			const overlayPath = this.getOverlayPath();
+
+			if (!existsSync(overlayPath)) {
+				logger.warn(
+					{ path: overlayPath },
+					"Overlay not found, skipping auto-start",
+				);
+				return;
+			}
+
+			try {
+				this.overlayProcess = spawn("bun", ["run", "start"], {
+					cwd: overlayPath,
+					detached: true,
+					stdio: "ignore",
+				});
+
+				this.overlayProcess.on("error", (err) => {
+					logger.warn({ err }, "Overlay process error");
+				});
+
+				this.overlayProcess.unref();
+
+				const pid = this.overlayProcess.pid;
+				if (pid) {
+					writeFile(this.overlayPidFile, pid.toString()).catch((e) => {
+						logger.debug({ err: e }, "Failed to write overlay PID file");
+					});
+				}
+
+				logger.info({ pid }, "Overlay started");
+			} catch (error) {
+				logError("Failed to start overlay", error);
+			}
+		})();
+	}
+
+	private stopOverlay(): void {
+		if (this.overlayProcess) {
+			try {
+				this.overlayProcess.kill("SIGTERM");
+			} catch (e) {
+				logger.debug({ err: e }, "Failed to kill overlay process");
+			}
+			this.overlayProcess = undefined;
+		}
+
+		try {
+			const raw = readFileSync(this.overlayPidFile, "utf8").trim();
+			const oldPid = parseInt(raw, 10);
+			if (!Number.isNaN(oldPid)) {
+				process.kill(oldPid, "SIGTERM");
+				logger.debug(
+					{ oldPid },
+					"Terminated stale overlay from previous session",
+				);
+			}
+		} catch {
+			// PID file absent or process already dead
+		}
+
+		try {
+			unlinkSync(this.overlayPidFile);
+		} catch (e) {
+			logger.debug({ err: e }, "Failed to remove overlay PID file");
 		}
 	}
 
@@ -131,17 +293,31 @@ export class DaemonService {
 		this.updateState();
 	}
 
+	private notifyStateChange(
+		title: string,
+		message: string,
+		type: "info" | "success" | "warning" = "info",
+	): void {
+		if (this.config.overlay?.enabled) {
+			return;
+		}
+		notify(title, message, type);
+	}
+
 	private setupListeners() {
 		this.hotkeyListener.on("trigger", () => this.handleTrigger());
 
 		this.recorder.on("start", () => {
 			this.setStatus("recording");
-			notify("Recording Started", "Listening...", "info");
+			this.notifyStateChange("Recording Started", "Listening...");
 		});
 
 		this.recorder.on("stop", (audioBuffer: Buffer, duration: number) => {
 			this.setStatus("processing");
-			notify("Recording Stopped", "Processing transcription...", "info");
+			this.notifyStateChange(
+				"Recording Stopped",
+				"Processing transcription...",
+			);
 			this.processAudio(audioBuffer, duration);
 		});
 
@@ -169,7 +345,7 @@ export class DaemonService {
 			let title = "Error";
 			let message = err.message;
 
-			const code = (err as any).code as ErrorCode;
+			const code = getErrorCode(err);
 
 			if (code === "NO_MICROPHONE") {
 				title = "Microphone Error";
@@ -202,19 +378,20 @@ export class DaemonService {
 
 	public async start() {
 		try {
-			writeFileSync(this.pidFile, process.pid.toString());
+			await writeFile(this.pidFile, process.pid.toString());
+			await this.ipcServer.start();
 			this.updateState();
+			this.startOverlay();
 
-			const config = loadConfig();
 			const hotkeyDisabled =
-				config.behavior.hotkey.toLowerCase() === "disabled";
+				this.config.behavior.hotkey.toLowerCase() === "disabled";
 
 			const isWayland =
 				!!process.env.WAYLAND_DISPLAY ||
 				process.env.XDG_SESSION_TYPE === "wayland";
 
 			if (!hotkeyDisabled) {
-				await checkHotkeyConflict(config.behavior.hotkey);
+				await checkHotkeyConflict(this.config.behavior.hotkey);
 				this.hotkeyListener.start();
 				logger.info("Daemon started. Waiting for hotkey...");
 
@@ -237,17 +414,26 @@ export class DaemonService {
 		}
 	}
 
-	public stop() {
+	public async stop() {
 		this.hotkeyListener.stop();
-		this.recorder.stop(true);
+		await this.recorder.stop(true);
+		this.stopOverlay();
 		process.off("SIGUSR1", this.signalHandler);
+		process.off("SIGUSR2", this.reloadSignalHandler);
 		if (this.keepAliveInterval) {
 			clearInterval(this.keepAliveInterval);
 		}
-		try {
-			unlinkSync(this.pidFile);
-			unlinkSync(this.stateFile);
-		} catch (_e) {}
+		if (this.stateWriteDebounceTimer) {
+			clearTimeout(this.stateWriteDebounceTimer);
+		}
+		await this.ipcServer.stop();
+		for (const file of [this.pidFile, this.stateFile]) {
+			try {
+				unlinkSync(file);
+			} catch (e) {
+				logger.debug({ err: e, file }, "Failed to remove file during shutdown");
+			}
+		}
 		logger.info("Daemon stopped");
 	}
 
@@ -255,10 +441,9 @@ export class DaemonService {
 		if (this.status === "idle" || this.status === "error") {
 			this.cancelPending = false;
 			try {
-				const config = loadConfig();
 				this.setStatus("starting");
 
-				if (config.transcription.streaming) {
+				if (this.config.transcription.streaming) {
 					if (this.streamingDataHandler) {
 						this.recorder.off("data", this.streamingDataHandler);
 						logger.debug("Removed old streaming data handler");
@@ -267,20 +452,34 @@ export class DaemonService {
 					logger.info("Starting Deepgram streaming connection...");
 					this.deepgramStreaming = new DeepgramStreamingTranscriber();
 
-					// Attach listeners BEFORE starting (since start is now non-blocking)
 					this.deepgramStreaming.on("transcript", (text) => {
 						logger.info({ text }, "Received streaming transcript chunk");
 					});
 
 					this.deepgramStreaming.on("error", (err) => {
 						logger.error({ err }, "Deepgram streaming error");
-						// We don't stop recording here; we rely on the error being caught
-						// or the streaming just failing silently (daemon will fallback to Groq)
 					});
 
-					// Start connection (non-blocking)
+					this.deepgramStreaming.on(
+						"streaming_failed",
+						(reason: StreamingFailureReason) => {
+							logger.warn(
+								{
+									reason,
+									fallback: "batch mode",
+								},
+								"Streaming connection lost, will use batch transcription",
+							);
+							this.notifyStateChange(
+								"Streaming Interrupted",
+								"Using batch transcription",
+								"warning",
+							);
+						},
+					);
+
 					const startPromise = this.deepgramStreaming.start(
-						config.transcription.language,
+						this.config.transcription.language,
 					);
 
 					// We catch synchronous errors from start(), but async connection errors go to 'error' event
@@ -417,9 +616,8 @@ export class DaemonService {
 
 	private async processAudio(audioBuffer: Buffer, duration: number) {
 		try {
-			const config = loadConfig();
-			const language = config.transcription.language;
-			const boostWords = config.transcription.boostWords || [];
+			const language = this.config.transcription.language;
+			const boostWords = this.config.transcription.boostWords || [];
 
 			const convertedBuffer = await convertAudio(audioBuffer);
 
@@ -430,9 +628,9 @@ export class DaemonService {
 			let groqText = "";
 			let deepgramText = "";
 
-			let streamingChunkCount = -1; // -1 = batch mode (not streaming)
+			let streamingChunkCount = -1;
 
-			if (config.transcription.streaming && this.deepgramStreaming) {
+			if (this.config.transcription.streaming && this.deepgramStreaming) {
 				const [groqResult, streamingResult] = await Promise.all([
 					this.groq
 						.transcribe(convertedBuffer, language, boostWords)
@@ -465,13 +663,16 @@ export class DaemonService {
 
 			const processingTime = Date.now() - startTime;
 
-			const handleTranscriptionError = (err: any, failedService: string) => {
-				const code = err instanceof AppError ? err.code : undefined;
+			const handleTranscriptionError = (
+				err: unknown,
+				failedService: string,
+			) => {
+				const code = getErrorCode(err);
 
 				if (
 					code === "GROQ_INVALID_KEY" ||
 					code === "DEEPGRAM_INVALID_KEY" ||
-					err?.message?.includes("Invalid API Key")
+					errorIncludes(err, "Invalid API Key")
 				) {
 					const template =
 						failedService === "Groq"
@@ -480,12 +681,12 @@ export class DaemonService {
 					notify("Configuration Error", formatUserError(template), "error");
 				} else if (
 					code === "RATE_LIMIT_EXCEEDED" ||
-					err?.message?.includes("Rate limit exceeded")
+					errorIncludes(err, "Rate limit exceeded")
 				) {
 					const template =
 						ErrorTemplates.API.RATE_LIMIT_EXCEEDED(failedService);
 					notify("Rate Limit", formatUserError(template), "error");
-				} else if (code === "TIMEOUT" || err?.message?.includes("timed out")) {
+				} else if (code === "TIMEOUT" || errorIncludes(err, "timed out")) {
 					logger.warn(`${failedService} API timed out`);
 				} else {
 					logError(`${failedService} failed`, err);
@@ -561,7 +762,7 @@ export class DaemonService {
 
 			await this.clipboard.append(finalText);
 
-			const stats = incrementTranscriptionCount();
+			const stats = await incrementTranscriptionCount();
 			this.transcriptionCountToday = stats.today;
 			this.transcriptionCountTotal = stats.total;
 
@@ -571,7 +772,7 @@ export class DaemonService {
 					: groqText
 						? "groq"
 						: "deepgram";
-			appendHistory({
+			await appendHistory({
 				timestamp: new Date().toISOString(),
 				text: finalText,
 				duration,
@@ -579,7 +780,11 @@ export class DaemonService {
 				processingTime,
 			});
 
-			notify("Success", "Transcription copied to clipboard", "success");
+			this.notifyStateChange(
+				"Success",
+				"Transcription copied to clipboard",
+				"success",
+			);
 
 			logger.info(
 				{
@@ -601,17 +806,17 @@ export class DaemonService {
 				},
 				"Transcription complete",
 			);
-		} catch (error: any) {
+		} catch (error: unknown) {
 			logError("Processing failed", error, { duration });
 
 			let message = "Transcription failed. Check logs.";
-			const code = error instanceof AppError ? error.code : undefined;
+			const code = getErrorCode(error);
 
 			if (code === "ACCESS_DENIED" || error instanceof ClipboardAccessError) {
 				message = formatUserError(ErrorTemplates.CLIPBOARD.ACCESS_DENIED);
 			} else if (code === "APPEND_FAILED") {
 				message = formatUserError(ErrorTemplates.CLIPBOARD.APPEND_FAILED);
-			} else if (code === "TIMEOUT" || error?.message?.includes("timed out")) {
+			} else if (code === "TIMEOUT" || errorIncludes(error, "timed out")) {
 				message = formatUserError(ErrorTemplates.API.TIMEOUT("Both"));
 			} else if (code === "BOTH_SERVICES_FAILED") {
 				message = formatUserError(ErrorTemplates.API.BOTH_SERVICES_FAILED);

@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { atomicWriteFile } from "./file-ops";
 
 export interface TranscriptionStats {
 	today: number;
@@ -45,7 +47,7 @@ export function loadStats(): TranscriptionStats {
 			total,
 			lastDate,
 		};
-	} catch (_e) {
+	} catch {
 		return {
 			today: 0,
 			total: 0,
@@ -54,21 +56,25 @@ export function loadStats(): TranscriptionStats {
 	}
 }
 
-export function saveStats(stats: TranscriptionStats): void {
+export async function saveStats(stats: TranscriptionStats): Promise<void> {
 	const dir = join(homedir(), ".config", "voice-cli");
 	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
+		await mkdir(dir, { recursive: true });
 	}
 
 	try {
-		writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), { mode: 0o600 });
-	} catch (_e) {}
+		await atomicWriteFile(STATS_FILE, JSON.stringify(stats, null, 2), {
+			mode: 0o600,
+		});
+	} catch (e) {
+		console.error("Failed to save stats file:", e);
+	}
 }
 
-export function incrementTranscriptionCount(): TranscriptionStats {
+export async function incrementTranscriptionCount(): Promise<TranscriptionStats> {
 	const stats = loadStats();
 	stats.today += 1;
 	stats.total += 1;
-	saveStats(stats);
+	await saveStats(stats);
 	return stats;
 }

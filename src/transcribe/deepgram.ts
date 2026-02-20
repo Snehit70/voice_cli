@@ -5,17 +5,20 @@ import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 
 export class DeepgramTranscriber {
-	private client: DeepgramClient;
+	private _client: DeepgramClient | null = null;
 
-	constructor() {
-		const config = loadConfig();
-		this.client = createClient(config.apiKeys.deepgram);
+	private get client(): DeepgramClient {
+		if (!this._client) {
+			const config = loadConfig();
+			this._client = createClient(config.apiKeys.deepgram);
+		}
+		return this._client;
 	}
 
-	/**
-	 * Checks connectivity to the Deepgram API by fetching projects.
-	 * This is used for health checks and API key validation.
-	 */
+	public reset(): void {
+		this._client = null;
+	}
+
 	public async checkConnection(): Promise<boolean> {
 		try {
 			return await withRetry(

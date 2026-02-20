@@ -20,6 +20,69 @@ export const resolvePath = (path: string): string => {
 };
 
 let cachedConfig: Config | null = null;
+let reloadInProgress = false;
+
+/**
+ * Clears the cached config, forcing next loadConfig() to read from file.
+ * Useful for config reload scenarios.
+ */
+export const clearConfigCache = (): void => {
+	cachedConfig = null;
+};
+
+/**
+ * Result of a config load attempt.
+ * Used by reloadConfig() to return success/failure without throwing.
+ */
+export interface ConfigLoadResult {
+	success: boolean;
+	config?: Config;
+	error?: string;
+}
+
+/**
+ * Attempts to load config without throwing.
+ * Returns a result object indicating success/failure.
+ * Used internally by reloadConfig() for safe config reloading.
+ */
+export const tryLoadConfig = (
+	configPath: string = DEFAULT_CONFIG_FILE,
+): ConfigLoadResult => {
+	try {
+		const config = loadConfig(configPath, true);
+		return { success: true, config };
+	} catch (error) {
+		const message = error instanceof AppError ? error.message : String(error);
+		return { success: false, error: message };
+	}
+};
+
+/**
+ * Reloads config from file with validation.
+ * Thread-safe: concurrent calls return false if a reload is already in progress.
+ * On failure, retains the previous config and logs the error.
+ * @returns true if reload succeeded, false if failed or another reload is in progress
+ */
+export const reloadConfig = (
+	configPath: string = DEFAULT_CONFIG_FILE,
+): ConfigLoadResult => {
+	if (reloadInProgress) {
+		return { success: false, error: "Reload already in progress" };
+	}
+
+	reloadInProgress = true;
+	try {
+		const result = tryLoadConfig(configPath);
+		if (result.success && result.config) {
+			if (configPath === DEFAULT_CONFIG_FILE) {
+				cachedConfig = result.config;
+			}
+		}
+		return result;
+	} finally {
+		reloadInProgress = false;
+	}
+};
 
 /**
  * Loads and validates the configuration.

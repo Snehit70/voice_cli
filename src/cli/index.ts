@@ -20,6 +20,7 @@ import { errorsCommand } from "./errors";
 import { healthCommand } from "./health";
 import { historyCommand } from "./history";
 import { logsCommand } from "./logs";
+import { overlayCommand } from "./overlay";
 
 const program = new Command();
 const configDir = join(homedir(), ".config", "voice-cli");
@@ -52,8 +53,12 @@ program
 						`Or if using systemd: ${colors.cyan("systemctl --user stop voice-cli")}`,
 					);
 					process.exit(1);
-				} catch (_e) {}
-			} catch (_e) {}
+				} catch {
+					// Process doesn't exist, stale PID file
+				}
+			} catch {
+				// Failed to read PID file, assume not running
+			}
 		}
 
 		if (options.supervisor && !process.env.VOICE_CLI_DAEMON_WORKER) {
@@ -315,7 +320,9 @@ WantedBy=default.target
 				if (isActive === "active") statusStr = colors.green("Active");
 				else if (isActive === "activating")
 					statusStr = colors.yellow("Activating");
-			} catch (_e) {}
+			} catch {
+				// Service not active, show default "Inactive"
+			}
 			console.log(`  Status: ${statusStr}`);
 			console.log(
 				colors.green("------------------------------------------------"),
@@ -372,19 +379,25 @@ program
 			try {
 				try {
 					execSync(`systemctl --user stop ${serviceName}`, { stdio: "ignore" });
-				} catch (_e) {}
+				} catch {
+					// Service may not be running
+				}
 
 				try {
 					execSync(`systemctl --user disable ${serviceName}`, {
 						stdio: "ignore",
 					});
-				} catch (_e) {}
+				} catch {
+					// Service may not be enabled
+				}
 
 				unlinkSync(servicePath);
 
 				try {
 					execSync("systemctl --user daemon-reload", { stdio: "ignore" });
-				} catch (_e) {}
+				} catch {
+					// daemon-reload may fail, non-critical
+				}
 
 				console.log("Service removed successfully.");
 			} catch (error) {
@@ -432,5 +445,6 @@ program.addCommand(boostCommand);
 program.addCommand(healthCommand);
 program.addCommand(errorsCommand);
 program.addCommand(historyCommand);
+program.addCommand(overlayCommand);
 
 export { program };

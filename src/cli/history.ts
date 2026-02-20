@@ -79,7 +79,7 @@ async function paginateHistory(
 export const historyCommand = new Command("history")
 	.description("Display transcription history")
 	.action(async () => {
-		const history = loadHistory();
+		const history = await loadHistory();
 		if (history.length === 0) {
 			console.log(colors.yellow("No transcription history found."));
 			return;
@@ -93,7 +93,7 @@ historyCommand
 	.description("List recent transcriptions")
 	.option("-n, --number <count>", "Number of items to show", "20")
 	.action(async (options) => {
-		const history = loadHistory();
+		const history = await loadHistory();
 		if (history.length === 0) {
 			console.log(colors.yellow("No transcription history found."));
 			return;
@@ -116,7 +116,7 @@ historyCommand
 	.option("-f, --from <date>", "Search from date (YYYY-MM-DD)")
 	.option("-t, --to <date>", "Search to date (YYYY-MM-DD)")
 	.action(async (keyword, options) => {
-		const results = searchHistory({
+		const results = await searchHistory({
 			keyword,
 			date: options.date,
 			from: options.from,
@@ -139,7 +139,7 @@ historyCommand
 historyCommand
 	.command("clear")
 	.description("Clear all transcription history")
-	.action(() => {
-		clearHistory();
+	.action(async () => {
+		await clearHistory();
 		console.log(colors.green("✅ Transcription history cleared."));
 	});

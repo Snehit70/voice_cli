@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { type Recording, record } from "node-record-lpcm16";
 import { loadConfig } from "../config/loader";
-import { AppError, type ErrorCode } from "../utils/errors";
+import { AppError, type ErrorCode, hasErrorCode } from "../utils/errors";
 import { logError, logger } from "../utils/logger";
 import { withRetry } from "../utils/retry";
 
@@ -29,7 +29,13 @@ export class AudioRecorder extends EventEmitter {
 			const config = loadConfig();
 			this.minDuration = (config.behavior.clipboard.minDuration || 0.6) * 1000;
 			this.maxDuration = (config.behavior.clipboard.maxDuration || 300) * 1000;
-		} catch (_e) {}
+		} catch (e) {
+			// Use defaults if config load fails
+			logger.debug(
+				{ err: e },
+				"Failed to load recorder settings, using defaults",
+			);
+		}
 	}
 
 	public isRecording(): boolean {
@@ -154,9 +160,7 @@ export class AudioRecorder extends EventEmitter {
 				operationName: "Start recording",
 				maxRetries: 2,
 				backoffs: [100, 200],
-				shouldRetry: (err) => {
-					return err instanceof AppError && err.code === "DEVICE_BUSY";
-				},
+				shouldRetry: (err) => hasErrorCode(err, "DEVICE_BUSY"),
 			},
 		);
 

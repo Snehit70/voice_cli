@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { loadConfig } from "../config/loader";
+import type { Config } from "../config/schema";
+import { atomicWriteFile, ensureDir, readJsonFile } from "./file-ops";
 import { logger } from "./logger";
 
 export interface HistoryItem {
@@ -18,8 +20,10 @@ export interface SearchOptions {
 	to?: string;
 }
 
-export function searchHistory(options: SearchOptions): HistoryItem[] {
-	const history = loadHistory();
+export async function searchHistory(
+	options: SearchOptions,
+): Promise<HistoryItem[]> {
+	const history = await loadHistory();
 	return history.filter((item) => {
 		if (
 			options.keyword &&
@@ -62,11 +66,11 @@ export function searchHistory(options: SearchOptions): HistoryItem[] {
 	});
 }
 
-export function appendHistory(item: HistoryItem): void {
-	let config;
+export async function appendHistory(item: HistoryItem): Promise<void> {
+	let config: Config;
 	try {
 		config = loadConfig();
-	} catch (_error) {
+	} catch {
 		logger.error("Failed to load config for history append");
 		return;
 	}
@@ -74,23 +78,15 @@ export function appendHistory(item: HistoryItem): void {
 	const historyFile = config.paths.history;
 
 	try {
-		const dir = dirname(historyFile);
-		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true });
-		}
+		await ensureDir(dirname(historyFile));
 
 		let history: HistoryItem[] = [];
 		if (existsSync(historyFile)) {
-			try {
-				const content = readFileSync(historyFile, "utf-8");
-				const parsed = JSON.parse(content);
-				if (Array.isArray(parsed)) {
-					history = parsed;
-				} else {
-					logger.warn("History file format invalid, resetting to empty array");
-				}
-			} catch (_e) {
-				logger.warn("Failed to parse history file, starting fresh");
+			const loaded = await readJsonFile<HistoryItem[]>(historyFile);
+			if (Array.isArray(loaded)) {
+				history = loaded;
+			} else if (loaded !== null) {
+				logger.warn("History file format invalid, resetting to empty array");
 			}
 		}
 
@@ -100,7 +96,7 @@ export function appendHistory(item: HistoryItem): void {
 			history = history.slice(-1000);
 		}
 
-		writeFileSync(historyFile, JSON.stringify(history, null, 2), {
+		await atomicWriteFile(historyFile, JSON.stringify(history, null, 2), {
 			mode: 0o600,
 		});
 	} catch (error) {
@@ -108,11 +104,11 @@ export function appendHistory(item: HistoryItem): void {
 	}
 }
 
-export function loadHistory(): HistoryItem[] {
-	let config;
+export async function loadHistory(): Promise<HistoryItem[]> {
+	let config: Config;
 	try {
 		config = loadConfig();
-	} catch (_error) {
+	} catch {
 		return [];
 	}
 
@@ -122,27 +118,28 @@ export function loadHistory(): HistoryItem[] {
 	}
 
 	try {
-		const content = readFileSync(historyFile, "utf-8");
-		const parsed = JSON.parse(content);
-		return Array.isArray(parsed) ? parsed : [];
+		const history = await readJsonFile<HistoryItem[]>(historyFile);
+		return Array.isArray(history) ? history : [];
 	} catch (error) {
 		logger.error({ error, historyFile }, "Failed to load history");
 		return [];
 	}
 }
 
-export function clearHistory(): void {
-	let config;
+export async function clearHistory(): Promise<void> {
+	let config: Config;
 	try {
 		config = loadConfig();
-	} catch (_error) {
+	} catch {
 		return;
 	}
 
 	const historyFile = config.paths.history;
 	try {
 		if (existsSync(historyFile)) {
-			writeFileSync(historyFile, JSON.stringify([], null, 2), { mode: 0o600 });
+			await atomicWriteFile(historyFile, JSON.stringify([], null, 2), {
+				mode: 0o600,
+			});
 		}
 	} catch (error) {
 		logger.error({ error, historyFile }, "Failed to clear history");

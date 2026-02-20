@@ -37,7 +37,7 @@ describe("History Storage Integration", () => {
 		}
 	});
 
-	it("should persist history items to disk", () => {
+	it("should persist history items to disk", async () => {
 		const item: HistoryItem = {
 			timestamp: new Date().toISOString(),
 			text: "Integration test message",
@@ -46,7 +46,7 @@ describe("History Storage Integration", () => {
 			processingTime: 450,
 		};
 
-		appendHistory(item);
+		await appendHistory(item);
 
 		expect(existsSync(HISTORY_FILE)).toBe(true);
 
@@ -54,12 +54,12 @@ describe("History Storage Integration", () => {
 		expect(content).toHaveLength(1);
 		expect(content[0]).toEqual(item);
 
-		const loaded = loadHistory();
+		const loaded = await loadHistory();
 		expect(loaded).toHaveLength(1);
 		expect(loaded[0]).toEqual(item);
 	});
 
-	it("should set correct file permissions (600)", () => {
+	it("should set correct file permissions (600)", async () => {
 		const item: HistoryItem = {
 			timestamp: new Date().toISOString(),
 			text: "Permission test",
@@ -68,13 +68,13 @@ describe("History Storage Integration", () => {
 			processingTime: 100,
 		};
 
-		appendHistory(item);
+		await appendHistory(item);
 
 		const stats = statSync(HISTORY_FILE);
 		expect(stats.mode & 0o777).toBe(0o600);
 	});
 
-	it("should handle directory creation if it does not exist", () => {
+	it("should handle directory creation if it does not exist", async () => {
 		const nestedDir = join(TEST_DIR, "deep", "nested", "dir");
 		const nestedFile = join(nestedDir, "history.json");
 
@@ -92,15 +92,15 @@ describe("History Storage Integration", () => {
 			processingTime: 100,
 		};
 
-		appendHistory(item);
+		await appendHistory(item);
 
 		expect(existsSync(nestedFile)).toBe(true);
-		expect(loadHistory()).toHaveLength(1);
+		expect(await loadHistory()).toHaveLength(1);
 	});
 
-	it("should enforce the 1000 item limit across multiple appends", () => {
+	it("should enforce the 1000 item limit across multiple appends", async () => {
 		for (let i = 0; i < 1050; i++) {
-			appendHistory({
+			await appendHistory({
 				timestamp: new Date().toISOString(),
 				text: `Message ${i}`,
 				duration: 1,
@@ -109,7 +109,7 @@ describe("History Storage Integration", () => {
 			});
 		}
 
-		const history = loadHistory();
+		const history = await loadHistory();
 		expect(history).toHaveLength(1000);
 
 		expect(history[0]?.text).toBe("Message 50");
@@ -120,8 +120,8 @@ describe("History Storage Integration", () => {
 		expect(onDisk[0].text).toBe("Message 50");
 	});
 
-	it("should clear history from disk", () => {
-		appendHistory({
+	it("should clear history from disk", async () => {
+		await appendHistory({
 			timestamp: new Date().toISOString(),
 			text: "Temp message",
 			duration: 1,
@@ -131,16 +131,16 @@ describe("History Storage Integration", () => {
 
 		expect(existsSync(HISTORY_FILE)).toBe(true);
 
-		clearHistory();
+		await clearHistory();
 
-		const loaded = loadHistory();
+		const loaded = await loadHistory();
 		expect(loaded).toEqual([]);
 
 		const onDisk = JSON.parse(readFileSync(HISTORY_FILE, "utf-8"));
 		expect(onDisk).toEqual([]);
 	});
 
-	it("should recover from corrupted history file", () => {
+	it("should recover from corrupted history file", async () => {
 		mkdirSync(TEST_DIR, { recursive: true });
 		require("node:fs").writeFileSync(HISTORY_FILE, "invalid json { {");
 
@@ -152,9 +152,9 @@ describe("History Storage Integration", () => {
 			processingTime: 100,
 		};
 
-		appendHistory(item);
+		await appendHistory(item);
 
-		const history = loadHistory();
+		const history = await loadHistory();
 		expect(history).toHaveLength(1);
 		expect(history[0]?.text).toBe("Recovery test");
 	});

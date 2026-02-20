@@ -1,10 +1,5 @@
-import {
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	statSync,
-	unlinkSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import pino from "pino";
 import { createStream } from "rotating-file-stream";
@@ -14,19 +9,15 @@ let logDir: string;
 try {
 	const config = loadConfig();
 	logDir = config.paths.logs;
-} catch (_e) {
+} catch {
 	logDir = join(process.env.HOME || ".", ".config", "voice-cli", "logs");
 }
 
 if (!existsSync(logDir)) {
-	try {
-		mkdirSync(logDir, { recursive: true, mode: 0o700 });
-	} catch (e) {
-		console.error(`Failed to create log directory: ${logDir}`, e);
-	}
+	mkdirSync(logDir, { recursive: true, mode: 0o700 });
 }
 
-const rotateLogs = (dir: string) => {
+const rotateLogs = async (dir: string) => {
 	try {
 		if (!existsSync(dir)) return;
 		const files = readdirSync(dir);
@@ -39,15 +30,24 @@ const rotateLogs = (dir: string) => {
 				try {
 					const stats = statSync(filePath);
 					if (now - stats.mtimeMs > thirtyDaysMs) {
-						unlinkSync(filePath);
+						await unlink(filePath);
 					}
-				} catch (_e) {}
+				} catch (e) {
+					// Non-critical: file may have been deleted or permissions issue
+					console.debug(`Failed to process log file ${filePath}:`, e);
+				}
 			}
 		}
-	} catch (_e) {}
+	} catch (e) {
+		// Non-critical: log rotation is best-effort
+		console.debug("Log rotation failed:", e);
+	}
 };
 
-rotateLogs(logDir);
+rotateLogs(logDir).catch((e) => {
+	// Non-critical: log rotation failure shouldn't block logger creation
+	console.debug("Log rotation failed:", e);
+});
 
 const rotatingStream = createStream(
 	(time) => {
@@ -81,7 +81,7 @@ export const logger = pino(
 export const logError = (
 	msg: string,
 	error?: unknown,
-	context?: Record<string, any>,
+	context?: Record<string, unknown>,
 ) => {
 	const errorObj =
 		error instanceof Error
